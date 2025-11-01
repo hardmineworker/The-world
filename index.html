@@ -2,492 +2,127 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Earth Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Earth Test - Minimal</title>
 <style>
-:root{
-  --bg1:#04021a;
-  --bg2:#001933;
-  --accent:#8ae6ff;
-  --ui-bg:rgba(255,255,255,0.04);
-}
-html,body{
-  margin:0;padding:0;width:100%;height:100%;
-  font-family:Inter,"Noto Sans KR",system-ui,-apple-system,"Segoe UI",Roboto,Arial;
-  color:#e6f7ff;overflow:hidden;
-  background: radial-gradient(ellipse at 20% 10%, rgba(138,230,255,0.02), transparent 10%),
-              linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 90%);
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
-  touch-action:none;
-}
-#app{position:relative;width:100%;height:100%;}
-canvas{width:100%;height:100%;display:block;touch-action:none;}
-#loaderWrap{
-  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:72%;max-width:520px;background:rgba(255,255,255,0.04);
-  border-radius:16px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);
-  z-index:60;backdrop-filter: blur(6px);
-}
-#loaderLabel{font-size:13px;color:var(--accent);margin-bottom:8px;text-align:center;}
-#loaderBarOuter{
-  width:100%;height:14px;background: rgba(255,255,255,0.03);
-  border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,0.03);
-}
-#loaderBarInner{
-  width:0%;height:100%;
-  background:linear-gradient(90deg,var(--accent),#4fffd8);
-  transition: width 180ms linear;
-}
-#topInfo{
-  position:absolute;left:12px;top:12px;z-index:70;
-  padding:8px 12px;background:rgba(0,0,0,0.22);
-  border-radius:10px;color:#cceeff;font-size:13px;
-  border:1px solid rgba(255,255,255,0.03);backdrop-filter: blur(4px);
-}
-#controls{
-  position:absolute;left:50%;transform:translateX(-50%);
-  bottom:16px;display:flex;gap:10px;z-index:70;
-}
-.controlBtn{
-  background:var(--ui-bg);border:1px solid rgba(255,255,255,0.06);
-  color:var(--accent);padding:10px 14px;border-radius:12px;
-  font-weight:600;backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(0,0,0,0.55);
-  cursor:pointer;user-select:none;
-}
-.controlBtn:active{transform:translateY(1px) scale(0.997);}
-.small{padding:8px 10px;font-size:13px;}
-.controlBtn:focus{outline:2px solid rgba(138,230,255,0.4);outline-offset:3px;}
-#console{
-  position:fixed;bottom:0;left:0;width:100%;max-height:150px;
-  overflow-y:scroll;background:rgba(0,0,0,0.8);
-  color:#0f0;font-size:12px;padding:5px;z-index:100;
-}
+  html,body{margin:0;padding:0;width:100%;height:100%;background:#001933;overflow:hidden;font-family:sans-serif;color:#fff;}
+  #glCanvas{display:block;width:100%;height:100%;}
+  #loaderWrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;height:20px;background:rgba(255,255,255,0.1);border-radius:10px;overflow:hidden;}
+  #loaderBarInner{width:0%;height:100%;background:linear-gradient(90deg,#8ae6ff,#4fffd8);transition:width 200ms linear;}
+  #console{position:fixed;bottom:0;left:0;width:100%;max-height:150px;overflow-y:auto;background:rgba(0,0,0,0.8);color:#0f0;font-size:12px;padding:5px;}
 </style>
 </head>
 <body>
-<div id="app" role="application">
-<canvas id="glCanvas" aria-hidden="false"></canvas>
-
-<div id="loaderWrap" role="status" aria-live="polite">
-  <div id="loaderLabel">Loading textures & data...</div>
-  <div id="loaderBarOuter"><div id="loaderBarInner" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div>
-  <div style="height:8px"></div>
-  <div style="font-size:12px;color:#dff9ff;opacity:0.85;text-align:center">If loading stalls, check network or use a local static server.</div>
-</div>
-
-<div id="topInfo">Drag to rotate • Pinch to zoom • Tap to toggle zoom</div>
-
-<div id="controls" role="toolbar" aria-label="Controls">
-  <button class="controlBtn small" id="btnZoom" aria-pressed="false">확대/축소</button>
-  <button class="controlBtn small" id="btnRotate" aria-pressed="true">자동 회전 On</button>
-  <button class="controlBtn small" id="btnBorders" aria-pressed="false">국경선 On/Off</button>
-  <button class="controlBtn small" id="btnDetail" aria-pressed="false">디테일 단계</button>
-</div>
-
+<canvas id="glCanvas"></canvas>
+<div id="loaderWrap"><div id="loaderBarInner"></div></div>
 <div id="console"></div>
-</div>
 
 <script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
-
-// ---------------------------
-// DOM Elements
-// ---------------------------
-const canvas=document.getElementById('glCanvas');
-const loaderWrap=document.getElementById('loaderWrap');
-const loaderInner=document.getElementById('loaderBarInner');
-const btnZoom=document.getElementById('btnZoom');
-const btnRotate=document.getElementById('btnRotate');
-const btnBorders=document.getElementById('btnBorders');
-const btnDetail=document.getElementById('btnDetail');
-const topInfo=document.getElementById('topInfo');
-const consoleDiv=document.getElementById('console');
-
-// ---------------------------
-// Logging utility
-// ---------------------------
+// -----------------------------
+// log function
+// -----------------------------
 function log(msg){
+  const consoleDiv=document.getElementById('console');
   const p=document.createElement('div');
   p.textContent=msg;
   consoleDiv.appendChild(p);
   consoleDiv.scrollTop=consoleDiv.scrollHeight;
 }
-log("시스템 시작");
 
-// ---------------------------
-// Renderer / Scene / Camera
-// ---------------------------
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+// -----------------------------
+// Three.js imports
+// -----------------------------
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+// -----------------------------
+// Renderer & Scene & Camera
+// -----------------------------
+const canvas=document.getElementById('glCanvas');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setSize(window.innerWidth,window.innerHeight);
-renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
 
 const scene=new THREE.Scene();
 scene.background=null;
 
-const camera=new THREE.PerspectiveCamera(45,window.innerWidth/window.innerHeight,0.1,200);
-function setCameraForViewport(){
-  const w=window.innerWidth;
-  if(w<=420) camera.position.set(0,0,2.6);
-  else if(w<=768) camera.position.set(0,0,3.2);
-  else if(w<=1024) camera.position.set(0,0,3.8);
-  else camera.position.set(0,0,4.6);
-}
-setCameraForViewport();
+const camera=new THREE.PerspectiveCamera(45,window.innerWidth/window.innerHeight,0.1,100);
+camera.position.set(0,0,3);
 
+// -----------------------------
+// Controls
+// -----------------------------
 const controls=new OrbitControls(camera,renderer.domElement);
-controls.enablePan=false;
 controls.enableDamping=true;
 controls.dampingFactor=0.08;
-controls.rotateSpeed=0.6;
-controls.zoomSpeed=0.9;
-controls.minDistance=1.2;
-controls.maxDistance=12;
+controls.enablePan=false;
 
-const ambient=new THREE.AmbientLight(0xffffff,0.55);
+// -----------------------------
+// Light
+// -----------------------------
+const ambient=new THREE.AmbientLight(0xffffff,0.6);
 scene.add(ambient);
-const dirLight=new THREE.DirectionalLight(0xffffff,0.95);
+const dirLight=new THREE.DirectionalLight(0xffffff,0.8);
 dirLight.position.set(5,3,5);
 scene.add(dirLight);
 
-// ---------------------------
-// Loading Manager
-// ---------------------------
-const loadingManager=new THREE.LoadingManager();
-loadingManager.onProgress=(url,itemsLoaded,itemsTotal)=>{
-  const pct=Math.round(itemsLoaded/itemsTotal*100);
-  loaderInner.style.width=pct+'%';
-  loaderInner.setAttribute('aria-valuenow',pct.toString());
+// -----------------------------
+// Loader Manager
+// -----------------------------
+const loaderManager=new THREE.LoadingManager();
+loaderManager.onProgress=(url,itemsLoaded,itemsTotal)=>{
+  const pct=Math.round((itemsLoaded/itemsTotal)*100);
+  const bar=document.getElementById('loaderBarInner');
+  bar.style.width=pct+'%';
 };
-loadingManager.onLoad=()=>{setTimeout(()=>{loaderWrap.style.display='none';},300);}
-loadingManager.onError=(url)=>{log("로드 실패: "+url);topInfo.textContent="텍스처 불러오기 실패";}
+loaderManager.onLoad=()=>{
+  setTimeout(()=>{document.getElementById('loaderWrap').style.display='none';},300);
+};
+loaderManager.onError=(url)=>{
+  log("Loading error:"+url);
+};
 
-// ---------------------------
-// Textures
-// ---------------------------
-const texLoader=new THREE.TextureLoader(loadingManager);
-const TEXTURES={
-  base:{map:'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
-        bump:'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-        spec:'https://threejs.org/examples/textures/planets/earthspec1k.jpg',
-        clouds:'https://threejs.org/examples/textures/planets/earth_clouds_1024.png'},
-  detail2:{map:'https://raw.githubusercontent.com/planetarymaps/planetary-maps/main/earth/earthmap4k.jpg',
-           bump:'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-           spec:'https://threejs.org/examples/textures/planets/earthspec1k.jpg'},
-  detail3:{map:'https://raw.githubusercontent.com/jeromeetienne/threex.planets/master/images/earthmap1k.jpg',
-           bump:'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-           spec:'https://threejs.org/examples/textures/planets/earthspec1k.jpg'}
-};
-// ---------------------------
-// Earth Geometry / Material
-// ---------------------------
-const earthGeo = new THREE.SphereGeometry(1,64,64);
-const earthMat = new THREE.MeshPhongMaterial({
-  map: texLoader.load(TEXTURES.base.map),
-  bumpMap: texLoader.load(TEXTURES.base.bump),
-  bumpScale:0.05,
-  specularMap: texLoader.load(TEXTURES.base.spec),
-  specular: new THREE.Color(0x333333),
-});
-const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+// -----------------------------
+// Texture Loader
+// -----------------------------
+const texLoader=new THREE.TextureLoader(loaderManager);
+const earthTexture=texLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+
+// -----------------------------
+// Earth Mesh
+// -----------------------------
+const earthGeo=new THREE.SphereGeometry(1,64,64);
+const earthMat=new THREE.MeshPhongMaterial({map:earthTexture});
+const earthMesh=new THREE.Mesh(earthGeo,earthMat);
 scene.add(earthMesh);
 
-// ---------------------------
-// Clouds
-// ---------------------------
-const cloudGeo=new THREE.SphereGeometry(1.01,64,64);
-const cloudMat=new THREE.MeshPhongMaterial({
-  map: texLoader.load(TEXTURES.base.clouds),
-  transparent:true,
-  opacity:0.35,
-  depthWrite:false
-});
-const cloudMesh=new THREE.Mesh(cloudGeo,cloudMat);
-scene.add(cloudMesh);
-
-// ---------------------------
-// Borders (wireframe)
-let bordersVisible=false;
-const borderGeo=new THREE.SphereGeometry(1.002,64,64);
-const borderMat=new THREE.MeshBasicMaterial({
-  color:0x8ae6ff,wireframe:true,opacity:0.3,transparent:true
-});
-const borderMesh=new THREE.Mesh(borderGeo,borderMat);
-borderMesh.visible=bordersVisible;
-scene.add(borderMesh);
-
-// ---------------------------
-// Space background
-const starsGeo=new THREE.BufferGeometry();
-const starsCount=15000;
-const starsPos=new Float32Array(starsCount*3);
-for(let i=0;i<starsCount;i++){
-  const theta=Math.random()*2*Math.PI;
-  const phi=Math.acos(Math.random()*2-1);
-  const r=50+Math.random()*50;
-  starsPos[i*3+0]=r*Math.sin(phi)*Math.cos(theta);
-  starsPos[i*3+1]=r*Math.sin(phi)*Math.sin(theta);
-  starsPos[i*3+2]=r*Math.cos(phi);
+// -----------------------------
+// Animation Loop
+// -----------------------------
+let last=0;
+function animate(now){
+  const dt=(now-last)/1000||0;
+  last=now;
+  earthMesh.rotation.y+=0.2*dt;
+  controls.update();
+  renderer.render(scene,camera);
+  requestAnimationFrame(animate);
 }
-starsGeo.setAttribute('position',new THREE.BufferAttribute(starsPos,3));
-const starsMat=new THREE.PointsMaterial({color:0xffffff,size:0.05});
-const stars=new THREE.Points(starsGeo,starsMat);
-scene.add(stars);
+requestAnimationFrame(animate);
 
-// ---------------------------
-// Controls toggles
-let autoRotate=true;
-let zoomToggle=false;
-
-btnRotate.addEventListener('click',()=>{
-  autoRotate=!autoRotate;
-  btnRotate.setAttribute('aria-pressed', autoRotate);
-  btnRotate.textContent=autoRotate?"자동 회전 On":"자동 회전 Off";
-  log("자동 회전: "+(autoRotate?"켜짐":"꺼짐"));
-});
-btnZoom.addEventListener('click',()=>{
-  zoomToggle=!zoomToggle;
-  btnZoom.setAttribute('aria-pressed',zoomToggle);
-  log("확대/축소 버튼 클릭: "+(zoomToggle?"활성":"비활성"));
-});
-
-// ---------------------------
-// Borders toggle
-btnBorders.addEventListener('click',()=>{
-  bordersVisible=!bordersVisible;
-  borderMesh.visible=bordersVisible;
-  btnBorders.setAttribute('aria-pressed',bordersVisible);
-  log("국경선: "+(bordersVisible?"보임":"숨김"));
-});
-
-// ---------------------------
-// Detail toggle (texture swap)
-let detailLevel=0;
-btnDetail.addEventListener('click',()=>{
-  detailLevel=(detailLevel+1)%3;
-  switch(detailLevel){
-    case 0: earthMesh.material.map=texLoader.load(TEXTURES.base.map); break;
-    case 1: earthMesh.material.map=texLoader.load(TEXTURES.detail2.map); break;
-    case 2: earthMesh.material.map=texLoader.load(TEXTURES.detail3.map); break;
-  }
-  log("디테일 단계: "+detailLevel);
-});
-
-// ---------------------------
-// Resize
+// -----------------------------
+// Responsive
+// -----------------------------
 window.addEventListener('resize',()=>{
   camera.aspect=window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth,window.innerHeight);
 });
 
-// ---------------------------
-// Touch rotation for mobile
-let isDragging=false,prevX=0,prevY=0;
-renderer.domElement.addEventListener('pointerdown',(e)=>{
-  isDragging=true;prevX=e.clientX;prevY=e.clientY;
-});
-renderer.domElement.addEventListener('pointerup',()=>{isDragging=false;});
-renderer.domElement.addEventListener('pointermove',(e)=>{
-  if(!isDragging) return;
-  const deltaX=(e.clientX-prevX)/100;
-  const deltaY=(e.clientY-prevY)/100;
-  earthMesh.rotation.y+=deltaX;
-  earthMesh.rotation.x+=deltaY;
-  prevX=e.clientX;prevY=e.clientY;
-});
-
-// ---------------------------
-// Click to zoom
-let zoomed=false;
-earthMesh.userData.zoomScale=1.5;
-renderer.domElement.addEventListener('click',(e)=>{
-  const mouse=new THREE.Vector2(
-    (e.clientX/window.innerWidth)*2-1,
-    -(e.clientY/window.innerHeight)*2+1
-  );
-  const raycaster=new THREE.Raycaster();
-  raycaster.setFromCamera(mouse,camera);
-  const intersects=raycaster.intersectObject(earthMesh);
-  if(intersects.length>0){
-    zoomed=!zoomed;
-    camera.position.set(
-      camera.position.x* (zoomed?earthMesh.userData.zoomScale:1/earthMesh.userData.zoomScale),
-      camera.position.y* (zoomed?earthMesh.userData.zoomScale:1/earthMesh.userData.zoomScale),
-      camera.position.z* (zoomed?earthMesh.userData.zoomScale:1/earthMesh.userData.zoomScale)
-    );
-    log("지구 클릭: "+(zoomed?"확대":"축소"));
-  }
-});
-
-// ---------------------------
-// Animation loop
-function animate(){
-  requestAnimationFrame(animate);
-  if(autoRotate) earthMesh.rotation.y+=0.0015;
-  cloudMesh.rotation.y+=0.002;
-  controls.update();
-  renderer.render(scene,camera);
-}
-animate();
-
-// ---------------------------
-// Periodic console messages (10초)
-setInterval(()=>{
-  log("시스템 체크: 애니메이션 정상 작동");
-},10000);
-// ---------------------------
-// 로딩바 UI 업데이트
-function updateLoader(pct){
-  loaderInner.style.width=pct+"%";
-  loaderInner.setAttribute('aria-valuenow',pct);
-}
-const fakeLoadInterval=setInterval(()=>{
-  let w=parseInt(loaderInner.style.width)||0;
-  if(w<100){w+=Math.random()*5; if(w>100) w=100; updateLoader(Math.floor(w));}
-  else clearInterval(fakeLoadInterval);
-},150);
-
-// ---------------------------
-// Console setup
-function log(msg){
-  const consoleDiv=document.getElementById('console') || (()=>{
-    const d=document.createElement('div');
-    d.id='console';
-    d.style.position='fixed';
-    d.style.bottom='0';
-    d.style.left='0';
-    d.style.width='100%';
-    d.style.maxHeight='150px';
-    d.style.overflowY='scroll';
-    d.style.background='rgba(0,0,0,0.8)';
-    d.style.color='#0f0';
-    d.style.fontSize='12px';
-    d.style.padding='5px';
-    document.body.appendChild(d);
-    return d;
-  })();
-  const p=document.createElement('div');
-  p.textContent=msg;
-  consoleDiv.appendChild(p);
-  consoleDiv.scrollTop=consoleDiv.scrollHeight;
-}
-log("시스템 초기화 완료");
-
-// ---------------------------
-// 상단 핑 표시
-const pingDiv=document.createElement('div');
-pingDiv.id='ping';
-pingDiv.style.position='absolute';
-pingDiv.style.left='12px';
-pingDiv.style.top='12px';
-pingDiv.style.padding='4px 8px';
-pingDiv.style.background='rgba(0,0,0,0.2)';
-pingDiv.style.color='#fff';
-pingDiv.style.fontSize='12px';
-pingDiv.style.borderRadius='6px';
-pingDiv.style.zIndex='90';
-pingDiv.textContent='PING: 0ms';
-document.body.appendChild(pingDiv);
-
-// ---------------------------
-// 로그인 정보 표시
-const loginDiv=document.createElement('div');
-loginDiv.id='loginInfo';
-loginDiv.style.position='absolute';
-loginDiv.style.right='12px';
-loginDiv.style.top='12px';
-loginDiv.style.padding='4px 8px';
-loginDiv.style.background='rgba(0,0,0,0.2)';
-loginDiv.style.color='#fff';
-loginDiv.style.fontSize='12px';
-loginDiv.style.borderRadius='6px';
-loginDiv.style.zIndex='90';
-loginDiv.textContent='User: Guest';
-document.body.appendChild(loginDiv);
-
-// ---------------------------
-// Ping 시뮬레이션 (매 3초)
-setInterval(()=>{
-  const simulatedPing=Math.floor(Math.random()*50+10);
-  pingDiv.textContent="PING: "+simulatedPing+"ms";
-  log("Ping 측정: "+simulatedPing+"ms");
-},3000);
-
-// ---------------------------
-// 간단한 로딩바 제거
-setTimeout(()=>{
-  loaderWrap.style.display='none';
-  log("로딩 완료: 지구 표시 준비");
-},2500);
-
-// ---------------------------
-// Camera 초기 세팅
-function setCameraDefault(){
-  camera.position.set(0,0,3.8);
-  camera.lookAt(0,0,0);
-}
-setCameraDefault();
-
-// ---------------------------
-// 간단한 터치 스케일링
-let lastTouchDistance=null;
-renderer.domElement.addEventListener('touchstart',(e)=>{
-  if(e.touches.length===2){
-    const dx=e.touches[0].clientX-e.touches[1].clientX;
-    const dy=e.touches[0].clientY-e.touches[1].clientY;
-    lastTouchDistance=Math.sqrt(dx*dx+dy*dy);
-  }
-});
-renderer.domElement.addEventListener('touchmove',(e)=>{
-  if(e.touches.length===2 && lastTouchDistance){
-    const dx=e.touches[0].clientX-e.touches[1].clientX;
-    const dy=e.touches[0].clientY-e.touches[1].clientY;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    const delta=(dist-lastTouchDistance)*0.01;
-    camera.position.z=THREE.MathUtils.clamp(camera.position.z-delta,1.2,12);
-    lastTouchDistance=dist;
-  }
-});
-renderer.domElement.addEventListener('touchend',()=>{lastTouchDistance=null;});
-
-// ---------------------------
-// 기본 OrbitControls 설정
-controls.enablePan=false;
-controls.enableDamping=true;
-controls.dampingFactor=0.08;
-controls.rotateSpeed=0.6;
-controls.zoomSpeed=0.9;
-controls.minDistance=1.2;
-controls.maxDistance=12;
-
-// ---------------------------
-// UI 버튼 키보드 접근
-[btnZoom,btnRotate,btnBorders,btnDetail].forEach(btn=>{
-  btn.tabIndex=0;
-  btn.addEventListener('focus',()=>{btn.style.outline='2px solid rgba(138,230,255,0.5)';});
-  btn.addEventListener('blur',()=>{btn.style.outline='none';});
-});
-
-// ---------------------------
-// Animation loop (다시 마무리)
-function mainLoop(){
-  requestAnimationFrame(mainLoop);
-  if(autoRotate) earthMesh.rotation.y+=0.0015;
-  cloudMesh.rotation.y+=0.002;
-  controls.update();
-  renderer.render(scene,camera);
-}
-mainLoop();
-
-// ---------------------------
-// 주기적 시스템 체크 (10초 단위)
-setInterval(()=>{log("시스템 체크: 애니메이션 정상 작동")},10000);
-
-// ---------------------------
-// 마무리: Github Pages에서도 작동하도록 상대 경로 / 외부 CDN 사용
-log("최종 초기화 완료 - Github Pages 호환 확인");
-
-
+// -----------------------------
+// Alive log every 10 sec
+// -----------------------------
+setInterval(()=>{log("Alive: Earth scene running")},10000);
+</script>
+</body>
+</html>
