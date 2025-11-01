@@ -2,646 +2,186 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>Simple Color Earth — Full (Console + Progress + 10s heartbeat)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Interactive 3D Earth with UI Console</title>
 <style>
-/* ============================
-   전체 레이아웃 및 스타일
-   ============================ */
-:root{
-  --bg1:#030217;
-  --bg2:#001927;
-  --accent:#8ae6ff;
-  --ui-bg: rgba(255,255,255,0.04);
-  --console-bg:#07120b;
-  --text:#e6f7ff;
-}
-html,body{
-  height:100%;
-  width:100%;
-  margin:0;
-  padding:0;
-  background:
-    radial-gradient(ellipse at 20% 10%, rgba(138,230,255,0.02), transparent 10%),
-    linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 90%);
-  color:var(--text);
-  font-family: Inter, "Noto Sans KR", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
-  overflow:hidden;
-}
+  :root {
+    --bg1: #04021a;
+    --bg2: #001933;
+    --accent: #8ae6ff;
+    --ui-bg: rgba(255,255,255,0.04);
+  }
+  html, body {
+    margin:0; padding:0;
+    width:100%; height:100%;
+    font-family: Inter, "Noto Sans KR", sans-serif;
+    background: linear-gradient(180deg, var(--bg1), var(--bg2));
+    overflow:hidden;
+  }
 
-/* 앱 레이아웃: 캔버스 영역 + 고정 콘솔(하단) */
-#app { position:relative; width:100vw; height:100vh; display:flex; flex-direction:column; }
-#canvasWrap { position:relative; flex:1; overflow:hidden; }
-canvas#glCanvas { display:block; width:100%; height:100%; touch-action:none; }
+  #app { position:relative; width:100vw; height:100vh; }
 
-/* 상단 UI: 좌(핑 자리) / 우(로그인 정보) */
-#topLeft {
-  position:absolute; left:12px; top:12px; z-index:80;
-  background: rgba(0,0,0,0.25); padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.02);
-  display:flex; gap:8px; align-items:center; color:#cfefff; font-size:13px; backdrop-filter: blur(4px);
-}
-#topLeft .pingDot {
-  width:12px; height:12px; border-radius:50%; background:rgba(255,80,80,0.95);
-  display:inline-block; box-shadow:0 0 8px rgba(255,80,80,0.6);
-}
-#topLeft span { user-select:none; }
+  canvas#glCanvas { width:100%; height:100%; display:block; }
 
-#topRight {
-  position:absolute; right:12px; top:12px; z-index:80;
-  background: rgba(0,0,0,0.22); padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.02);
-  display:flex; gap:10px; align-items:center; color:#cfefff; font-size:13px; backdrop-filter: blur(4px);
-}
-#avatar { width:34px; height:34px; border-radius:6px; background:linear-gradient(180deg,#6bb,#2ac); display:inline-block; flex-shrink:0; }
+  /* Loader bar */
+  #loaderWrap {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:72%; max-width:520px; background: var(--ui-bg);
+    border-radius:16px; padding:12px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.6);
+    z-index:50; backdrop-filter:blur(6px);
+  }
+  #loaderLabel { color:var(--accent); text-align:center; margin-bottom:6px; font-size:13px; }
+  #loaderBarOuter { width:100%; height:14px; background: rgba(255,255,255,0.03); border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,0.03);}
+  #loaderBarInner { width:0%; height:100%; background: linear-gradient(90deg,var(--accent), #4fffd8); transition: width 180ms linear; }
 
-/* 중앙 로더(프로그램 시작시 보임) */
-#loaderWrap{
-  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:75;
-  width:72%; max-width:520px; background:var(--ui-bg); padding:12px; border-radius:14px; text-align:center;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.6); backdrop-filter: blur(6px);
-}
-#loaderLabel{ font-size:13px; color:var(--accent); margin-bottom:8px; }
-#loaderBarOuter{ width:100%; height:14px; background: rgba(255,255,255,0.03); border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,0.03); }
-#loaderBarInner{ width:0%; height:100%; background: linear-gradient(90deg,var(--accent), #4fffd8); transition: width 160ms linear; }
+  /* Controls */
+  #controls { position:absolute; bottom:16px; right:18px; display:flex; flex-direction:column; gap:8px; z-index:70; }
+  .controlBtn { background: var(--ui-bg); border:1px solid rgba(255,255,255,0.06); color:var(--accent); padding:8px 12px; border-radius:12px; cursor:pointer; user-select:none; font-size:13px; }
+  .controlBtn:active{ transform: scale(0.98); }
 
-/* 하단 중앙 컨트롤 버튼 */
-#controls { position:absolute; left:50%; transform:translateX(-50%); bottom:20px; z-index:80; display:flex; gap:10px; }
-.controlBtn { background:var(--ui-bg); border:1px solid rgba(255,255,255,0.06); color:var(--accent); padding:10px 14px; border-radius:12px; font-weight:600; cursor:pointer; backdrop-filter: blur(6px); box-shadow:0 8px 24px rgba(0,0,0,0.55); }
-.controlBtn:active { transform: translateY(1px) scale(0.997); }
+  /* Top-left / top-right placeholders */
+  #ping { position:absolute; top:12px; left:12px; color:#8ae6ff; font-size:13px; z-index:70; }
+  #userInfo { position:absolute; top:12px; right:12px; color:#8ae6ff; font-size:13px; z-index:70; }
 
-/* 콘솔 도크 (항상 표시) */
-#consoleDock {
-  position:fixed; left:0; right:0; bottom:0; height:240px; max-height:45vh; background:var(--console-bg);
-  color:#b9f6b9; font-family:monospace; font-size:12px; display:flex; flex-direction:column; border-top:1px solid rgba(255,255,255,0.03);
-  z-index:90;
-}
-#consoleHeader { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:rgba(0,0,0,0.45); border-bottom:1px solid rgba(255,255,255,0.02); color:#9ff7d4; }
-#consoleBody { flex:1; overflow:auto; padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
-.log-info { color:#b9f6ff; }
-.log-warn { color:#fff1a8; }
-.log-error { color:#ff9b9b; font-weight:700; }
-.log-debug { color:#c8c8ff; }
+  /* Internal console */
+  #consoleUI {
+    position:absolute; bottom:0; left:0; width:100%; max-height:180px; overflow-y:auto;
+    background:rgba(0,0,0,0.6); color:#8ae6ff; font-size:12px; padding:6px;
+    font-family: monospace; z-index:100; box-sizing:border-box;
+  }
 
-/* 콘솔 헤더 버튼 */
-.consBtn { background:transparent; color:var(--console-bg); border:1px solid rgba(255,255,255,0.06); padding:6px 8px; border-radius:6px; cursor:pointer; }
-
-/* 반응형 */
-@media(max-width:420px){
-  #loaderWrap{ width:88%; padding:10px; border-radius:12px; }
-  #consoleDock{ height:180px; font-size:11px; }
-  .controlBtn{ padding:8px 10px; font-size:13px; }
-}
 </style>
 </head>
 <body>
-  <div id="app" role="application" aria-label="Simple Earth App">
-    <div id="canvasWrap">
-      <canvas id="glCanvas" aria-hidden="false"></canvas>
+<div id="app">
+  <canvas id="glCanvas"></canvas>
 
-      <!-- 상단 좌: Ping placeholder -->
-      <div id="topLeft" aria-hidden="false">
-        <span class="pingDot" title="Ping placeholder"></span>
-        <span id="pingLabel">PING</span>
-      </div>
-
-      <!-- 상단 우: User info placeholder -->
-      <div id="topRight" aria-hidden="false">
-        <div id="avatar" aria-hidden="true"></div>
-        <div id="userInfo">
-          <div id="userName" style="font-weight:700">Guest</div>
-          <div id="userStatus" style="font-size:11px;color:#bfeefc;opacity:0.85">Not signed in</div>
-        </div>
-      </div>
-
-      <!-- 중앙 로더 -->
-      <div id="loaderWrap" role="status" aria-live="polite">
-        <div id="loaderLabel">Loading assets & initializing...</div>
-        <div id="loaderBarOuter"><div id="loaderBarInner" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div>
-        <div style="height:8px"></div>
-        <div style="font-size:12px;color:#dff9ff;opacity:0.85;text-align:center">If loading stalls, check your network or run a local static server (e.g., live-server).</div>
-      </div>
-
-      <!-- controls -->
-      <div id="controls" role="toolbar" aria-label="Controls">
-        <button class="controlBtn" id="btnZoom" aria-pressed="false">Zoom</button>
-        <button class="controlBtn" id="btnRotate" aria-pressed="true">Auto Rotate</button>
-        <button class="controlBtn" id="btnBorders" aria-pressed="false">Borders</button>
-        <button class="controlBtn" id="btnDetail" aria-pressed="false">Detail</button>
-      </div>
-    </div>
-
-    <!-- Console dock -->
-    <div id="consoleDock" aria-live="polite" aria-atomic="false">
-      <div id="consoleHeader">
-        <div>Page Console</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="consBtn" id="btnClear">Clear</button>
-          <button class="consBtn" id="btnCollapse">Collapse</button>
-          <button class="consBtn" id="btnDownload">Download</button>
-        </div>
-      </div>
-      <div id="consoleBody" role="log" aria-atomic="false"></div>
-    </div>
+  <div id="loaderWrap">
+    <div id="loaderLabel">Loading textures...</div>
+    <div id="loaderBarOuter"><div id="loaderBarInner"></div></div>
   </div>
 
-  <!-- ============================
-       JavaScript: full module script
-       - three.js via CDN
-       - robust manual loader + progress watchdog
-       - on-page console + error capture
-       - 10-second heartbeat log
-       - simple-colored Earth (Phong)
-       ============================ -->
-  <script type="module">
-  /*****************************************************************************
-   * Simple Color Earth App
-   * - Implements user's requests: long complete code, console, loader, 10s heartbeat
-   * - Serve over HTTP(S). file:// won't work for ES modules.
-   *****************************************************************************/
+  <div id="ping">Ping: -- ms</div>
+  <div id="userInfo">User: Guest</div>
 
-  // ---------- Imports (use CDN absolute URLs to avoid specifier issues) ----------
-  import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-  import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+  <div id="controls">
+    <button class="controlBtn" id="btnRotate">자동 회전 On</button>
+    <button class="controlBtn" id="btnZoom">확대/축소</button>
+  </div>
 
-  // ---------- DOM refs ----------
-  const canvas = document.getElementById('glCanvas');
-  const loaderWrap = document.getElementById('loaderWrap');
-  const loaderInner = document.getElementById('loaderBarInner');
-  const loaderLabel = document.getElementById('loaderLabel');
-  const btnZoom = document.getElementById('btnZoom');
-  const btnRotate = document.getElementById('btnRotate');
-  const btnBorders = document.getElementById('btnBorders');
-  const btnDetail = document.getElementById('btnDetail');
-  const consoleBody = document.getElementById('consoleBody');
-  const btnClear = document.getElementById('btnClear');
-  const btnCollapse = document.getElementById('btnCollapse');
-  const btnDownload = document.getElementById('btnDownload');
-  const pingLabel = document.getElementById('pingLabel');
-  const userNameEl = document.getElementById('userName');
-  const userStatusEl = document.getElementById('userStatus');
+  <div id="consoleUI"></div>
+</div>
 
-  // ---------- On-page console ----------
-  function appendConsole(msg, type='info') {
-    try {
-      const el = document.createElement('div');
-      const ts = new Date().toLocaleTimeString();
-      el.textContent = `[${ts}] ${msg}`;
-      el.className = type === 'error' ? 'log-error' : type === 'warn' ? 'log-warn' : type === 'debug' ? 'log-debug' : 'log-info';
-      consoleBody.appendChild(el);
-      consoleBody.scrollTop = consoleBody.scrollHeight;
+<script type="module">
+// --- Three.js 로드 CDN ---
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
-      // visual flash for errors
-      if (type === 'error') {
-        const dock = document.getElementById('consoleDock');
-        if (dock) {
-          dock.animate([{ boxShadow: '0 0 0px rgba(255,0,0,0)' }, { boxShadow: '0 0 18px rgba(255,0,0,0.65)' }, { boxShadow: '0 0 0px rgba(255,0,0,0)'}], { duration: 1000 });
-        }
-      }
-    } catch (e) {
-      // fail-safe - if console fails, fallback to native console
-      console.error('appendConsole error', e);
-    }
+// --- DOM 요소 ---
+const canvas = document.getElementById('glCanvas');
+const loaderWrap = document.getElementById('loaderWrap');
+const loaderBarInner = document.getElementById('loaderBarInner');
+const btnRotate = document.getElementById('btnRotate');
+const btnZoom = document.getElementById('btnZoom');
+const consoleUI = document.getElementById('consoleUI');
+
+// --- 콘솔 출력 함수 ---
+function logUI(msg, type='log') {
+  const el = document.createElement('div');
+  el.textContent = `[${type}] ${msg}`;
+  el.style.color = type==='error'?'#ff6666':'#8ae6ff';
+  consoleUI.appendChild(el);
+  consoleUI.scrollTop = consoleUI.scrollHeight;
+}
+window.logUI = logUI;
+
+// --- 기존 console 가로채기 ---
+['log','error','warn'].forEach(fn=>{
+  const old = console[fn];
+  console[fn] = (...args)=>{
+    old(...args);
+    logUI(args.join(' '), fn);
   }
+});
 
-  // Hook native console methods
-  (function hookConsole(){
-    const origLog = console.log.bind(console);
-    const origWarn = console.warn.bind(console);
-    const origError = console.error.bind(console);
-    console.log = (...args) => { origLog(...args); appendConsole(args.map(safeStr).join(' '), 'info'); };
-    console.info = (...args) => { origLog(...args); appendConsole(args.map(safeStr).join(' '), 'info'); };
-    console.warn = (...args) => { origWarn(...args); appendConsole(args.map(safeStr).join(' '), 'warn'); };
-    console.error = (...args) => { origError(...args); appendConsole(args.map(safeStr).join(' '), 'error'); };
-    window.addEventListener('error', (e) => {
-      appendConsole(`${e.message} (${e.filename}:${e.lineno}:${e.colno})`, 'error');
-    });
-    window.addEventListener('unhandledrejection', (ev) => {
-      appendConsole(`UnhandledRejection: ${safeStr(ev.reason)}`, 'error');
-    });
-    function safeStr(v){ try{ if (typeof v === 'object') return JSON.stringify(v); return String(v); } catch(e){ return String(v); } }
-  })();
+// --- Renderer, Scene, Camera ---
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(window.innerWidth, window.innerHeight);
 
-  // Console control buttons
-  btnClear.addEventListener('click', ()=> { consoleBody.innerHTML = ''; });
-  btnCollapse.addEventListener('click', ()=>{
-    const dock = document.getElementById('consoleDock');
-    if (dock.style.height === '32px') { dock.style.height = '240px'; btnCollapse.textContent = 'Collapse'; }
-    else { dock.style.height = '32px'; btnCollapse.textContent = 'Expand'; }
-  });
-  btnDownload.addEventListener('click', ()=>{
-    const text = Array.from(consoleBody.children).map(n => n.textContent).join('\n');
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `console-${Date.now()}.txt`; a.click(); URL.revokeObjectURL(url);
-  });
+const scene = new THREE.Scene();
 
-  appendConsole('Console initialized', 'info');
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(0,0,3.5);
 
-  // ---------- Three.js renderer, scene, camera ----------
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.physicallyCorrectLights = false;
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enablePan=false;
+controls.enableDamping=true;
 
-  const scene = new THREE.Scene();
-  scene.background = null; // keep CSS background visible
+// --- Light ---
+scene.add(new THREE.AmbientLight(0xffffff,0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff,0.9);
+dirLight.position.set(5,3,5);
+scene.add(dirLight);
 
-  const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 200);
+// --- Earth Sphere (단순 색상) ---
+const earthGeo = new THREE.SphereGeometry(1,64,64);
+const earthMat = new THREE.MeshPhongMaterial({ color:0x2266ff, shininess:5 });
+const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+scene.add(earthMesh);
 
-  function setCameraForViewport(){
-    const w = window.innerWidth;
-    if (w <= 420) camera.position.set(0, 0, 3.2);
-    else if (w <= 768) camera.position.set(0, 0, 3.2);
-    else if (w <= 1024) camera.position.set(0, 0, 3.8);
-    else camera.position.set(0, 0, 4.6);
-  }
-  setCameraForViewport();
+// --- Loader 시뮬레이션 ---
+let loadPct=0;
+function fakeLoad() {
+  if(loadPct>=100){ loaderWrap.style.display='none'; return; }
+  loadPct += Math.random()*4; // 조금씩 올라가게
+  if(loadPct>100) loadPct=100;
+  loaderBarInner.style.width = loadPct+'%';
+  requestAnimationFrame(fakeLoad);
+}
+fakeLoad();
 
-  // OrbitControls
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enablePan = false;
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.rotateSpeed = 0.6;
-  controls.zoomSpeed = 0.9;
-  controls.minDistance = 1.1;
-  controls.maxDistance = 12;
+// --- UI 버튼 ---
+let autoRotate = true;
+btnRotate.onclick = ()=>{
+  autoRotate = !autoRotate;
+  btnRotate.textContent = autoRotate?'자동 회전 On':'자동 회전 Off';
+}
+let zoomedIn = false;
+btnZoom.onclick = ()=>{
+  zoomedIn = !zoomedIn;
+  camera.position.z = zoomedIn?1.8:3.5;
+}
 
-  // Lights
-  const ambient = new THREE.AmbientLight(0xffffff, 0.55); scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.95); dirLight.position.set(5,3,5); scene.add(dirLight);
-
-  // ---------- Manual asset loader (ensures progress moves) ----------
-  // We intentionally use minimal external assets (we'll render earth with simple color material).
-  // Still, to show loader progress and to make it robust, we load a small set of assets:
-  // - a small icon (threejs hosted) and an optional cloud texture (may or may not be used).
-  // If network blocks, the loader will not stall: we have a watchdog that nudge-progress.
-
-  const ASSET_MAP = {
-    smallIcon: 'https://threejs.org/examples/textures/uv_grid_opengl.jpg', // small-ish image (CORS friendly)
-    cloudTexture: 'https://threejs.org/examples/textures/planets/earth_clouds_1024.png'
-  };
-
-  const assetKeys = Object.keys(ASSET_MAP);
-  let totalAssets = assetKeys.length;
-  let finishedAssets = 0;
-  let failedAssets = 0;
-
-  // progress state
-  function setProgressPercent(pct) {
-    const sanitized = Math.max(0, Math.min(100, Math.round(pct)));
-    loaderInner.style.width = sanitized + '%';
-    loaderInner.setAttribute('aria-valuenow', String(sanitized));
-  }
-
-  // TextureLoader
-  const texLoader = new THREE.TextureLoader();
-  texLoader.crossOrigin = 'anonymous';
-
-  // store loaded textures
-  const ASSET_STORE = {};
-
-  // load function returns promise (resolves even on error)
-  function loadAsset(key, url) {
-    return new Promise((resolve) => {
-      texLoader.load(url, (tx) => {
-        finishedAssets++;
-        ASSET_STORE[key] = tx;
-        appendConsole(`Asset loaded: ${key} (${url})`, 'info');
-        setProgressPercent(((finishedAssets + failedAssets)/totalAssets) * 100);
-        resolve({ success:true, key, url, texture:tx });
-      }, undefined, (err) => {
-        failedAssets++;
-        appendConsole(`Asset failed: ${key} (${url}) — ${err}`, 'warn');
-        setProgressPercent(((finishedAssets + failedAssets)/totalAssets) * 100);
-        resolve({ success:false, key, url, error:err });
-      });
-    });
-  }
-
-  // start loading assets
-  async function loadAllAssets() {
-    loaderWrap.style.display = 'block';
-    setProgressPercent(0);
-    const promises = assetKeys.map(k => loadAsset(k, ASSET_MAP[k]));
-    const results = await Promise.all(promises);
-    appendConsole(`Asset loading finished: ${finishedAssets} loaded, ${failedAssets} failed`, 'info');
-    // Ensure progress reaches 100 - small delay for UX
-    setTimeout(() => { setProgressPercent(100); }, 200);
-    // hide loader after short delay
-    setTimeout(() => { loaderWrap.style.display = 'none'; }, 500);
-    return results;
-  }
-
-  // Watchdog: if progress stalls (no increase) for N seconds, attempt to nudge via HEAD fetch and small animation
-  (function progressWatchdog(){
-    let lastTotal = -1;
-    let stallCount = 0;
-    const intervalId = setInterval(async () => {
-      const currentTotal = finishedAssets + failedAssets;
-      if (currentTotal !== lastTotal) {
-        lastTotal = currentTotal;
-        stallCount = 0;
-        // update UI just in case
-        setProgressPercent(((finishedAssets + failedAssets)/totalAssets) * 100);
-      } else {
-        stallCount++;
-        appendConsole('Loader watchdog: no new assets detected, attempt ' + stallCount, 'debug');
-        // If stalled for 2 cycles (~6s), try to request HEAD for each asset to probe network.
-        if (stallCount === 2) {
-          for (const k of assetKeys) {
-            try {
-              const u = ASSET_MAP[k];
-              const r = await fetch(u, { method: 'HEAD' });
-              appendConsole(`HEAD ${k}: ${r.status}`, r.ok ? 'debug' : 'warn');
-            } catch (e) {
-              appendConsole(`HEAD ${k} failed: ${e}`, 'warn');
-            }
-          }
-        }
-        // After many stalls, animate progress slowly to avoid feeling frozen (but ensure not to report false finality)
-        if (stallCount > 3 && (finishedAssets + failedAssets) < totalAssets) {
-          // artificially increment progress indicator slightly but never exceed 95% until we actually finish
-          let currentPct = parseInt(loaderInner.style.width || '0', 10) || 0;
-          let bumped = Math.min(95, currentPct + 5);
-          setProgressPercent(bumped);
-        }
-      }
-      // stop watchdog after loader indicates done
-      const pct = parseInt(loaderInner.style.width || '0', 10) || 0;
-      if (pct >= 100) {
-        clearInterval(intervalId);
-      }
-    }, 3000);
-  })();
-
-  // ---------- Simple Earth (Phong) ----------
-  // The user requested a simple colored Earth (not heavy texture). We'll create a nice two-tone blue sphere with specular highlight.
-
-  const RADIUS = 1.0;
-  const SEG = 64;
-  const earthGeo = new THREE.SphereGeometry(RADIUS, SEG, SEG);
-
-  // create simple material with subtle shading
-  const simpleEarthMat = new THREE.MeshPhongMaterial({
-    color: 0x0f6ec0, // base blue
-    specular: new THREE.Color(0x2f5f8f),
-    shininess: 22
-  });
-
-  const earthMesh = new THREE.Mesh(earthGeo, simpleEarthMat);
-  earthMesh.name = 'earth';
-  earthMesh.rotation.x = 0.1; // slight tilt
-  scene.add(earthMesh);
-
-  // add subtle rim light using a second directional light
-  const rimLight = new THREE.DirectionalLight(0xaaffff, 0.14);
-  rimLight.position.set(-2, -1, -3);
-  scene.add(rimLight);
-
-  // clouds container - not visible by default (user wanted simple)
-  let cloudsMesh = null;
-
-  // borders group (lines)
-  const bordersGroup = new THREE.Group();
-  bordersGroup.visible = false; // default off
-  earthMesh.add(bordersGroup);
-
-  // load and build borders asynchronously (non-blocking)
-  async function loadBorders(url='https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson') {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const geo = await res.json();
-      const mat = new THREE.LineBasicMaterial({ color: 0x9fe9ff, linewidth: 1, transparent:true, opacity:0.85 });
-      for (const feat of geo.features) {
-        const geom = feat.geometry;
-        if (!geom) continue;
-        if (geom.type === 'Polygon') buildBorderLines(geom.coordinates, bordersGroup, mat);
-        else if (geom.type === 'MultiPolygon') for (const poly of geom.coordinates) buildBorderLines(poly, bordersGroup, mat);
-      }
-      appendConsole('GeoJSON borders loaded', 'info');
-    } catch (e) {
-      appendConsole('Borders load failed: ' + e, 'warn');
-    }
-  }
-  function buildBorderLines(polygonCoords, group, material) {
-    for (const ring of polygonCoords) {
-      const pts = [];
-      for (const coord of ring) {
-        const lon = coord[0] * Math.PI / 180;
-        const lat = coord[1] * Math.PI / 180;
-        const x = Math.cos(lat) * Math.cos(lon);
-        const y = Math.sin(lat);
-        const z = Math.cos(lat) * Math.sin(lon);
-        pts.push(new THREE.Vector3(x, y, z));
-      }
-      if (pts.length > 1) {
-        const geometry = new THREE.BufferGeometry().setFromPoints(pts);
-        const line = new THREE.Line(geometry, material);
-        group.add(line);
-      }
-    }
-  }
-  // fire-and-forget
-  loadBorders();
-
-  // ---------- Interaction state ----------
-  let autoRotate = true;
-  let bordersVisibleState = false;
-  let currentZoomStep = 0;
-  const ZOOM_STEPS = [3.2, 2.4, 1.6];
-
-  function setCameraDefault() {
-    const w = window.innerWidth;
-    if (w <= 420) camera.position.set(0, 0, ZOOM_STEPS[0]);
-    else camera.position.set(0, 0, ZOOM_STEPS[0]);
-  }
-  setCameraDefault();
-
-  // ---------- Gesture handling (pinch, tap, wheel) ----------
-  let pinchStartDistance = null;
-  let lastTap = 0;
-  function getDistance(t1, t2){ const dx = t1.clientX - t2.clientX; const dy = t1.clientY - t2.clientY; return Math.sqrt(dx*dx + dy*dy); }
-
-  canvas.addEventListener('touchstart', (evt) => {
-    if (evt.touches.length === 2) {
-      pinchStartDistance = getDistance(evt.touches[0], evt.touches[1]);
-    }
-  }, { passive:true });
-
-  canvas.addEventListener('touchmove', (evt) => {
-    if (evt.touches.length === 2 && pinchStartDistance != null) {
-      const newDist = getDistance(evt.touches[0], evt.touches[1]);
-      const delta = (pinchStartDistance - newDist) * 0.01;
-      camera.position.z = THREE.MathUtils.clamp(camera.position.z + delta, 1.0, 12);
-      pinchStartDistance = newDist;
-    }
-  }, { passive:true });
-
-  canvas.addEventListener('touchend', (evt) => {
-    if (evt.touches.length < 2) pinchStartDistance = null;
-    if (evt.changedTouches && evt.changedTouches.length === 1) {
-      const now = Date.now();
-      if (now - lastTap < 350) {
-        // double-tap: reset zoom
-        currentZoomStep = 0;
-        smoothCameraTo(ZOOM_STEPS[0], 300);
-        lastTap = 0;
-        appendConsole('Double-tap: reset zoom', 'debug');
-      } else {
-        setTimeout(() => {
-          if (Date.now() - lastTap >= 350) toggleZoomStep();
-        }, 360);
-        lastTap = now;
-      }
-    }
-  }, { passive:true });
-
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    camera.position.z = THREE.MathUtils.clamp(camera.position.z + e.deltaY * 0.002, 1.0, 12);
-  }, { passive:false });
-
-  // ---------- Zoom helpers ----------
-  function smoothCameraTo(targetZ, duration=400) {
-    const startZ = camera.position.z;
-    const start = performance.now();
-    return new Promise((resolve) => {
-      function tick(now) {
-        const t = Math.min(1, (now - start) / duration);
-        const eased = 1 - Math.pow(1 - t, 3);
-        camera.position.z = THREE.MathUtils.lerp(startZ, targetZ, eased);
-        if (t < 1) requestAnimationFrame(tick);
-        else resolve();
-      }
-      requestAnimationFrame(tick);
-    });
-  }
-
-  function toggleZoomStep() {
-    currentZoomStep = (currentZoomStep + 1) % ZOOM_STEPS.length;
-    smoothCameraTo(ZOOM_STEPS[currentZoomStep], 300);
-    appendConsole('Zoom step -> ' + currentZoomStep, 'debug');
-  }
-
-  // ---------- UI button handlers ----------
-  btnRotate.addEventListener('click', () => {
-    autoRotate = !autoRotate;
-    btnRotate.setAttribute('aria-pressed', String(autoRotate));
-    btnRotate.textContent = autoRotate ? 'Auto Rotate' : 'Auto Rotate (Off)';
-    appendConsole('AutoRotate: ' + autoRotate, 'info');
-  });
-
-  btnBorders.addEventListener('click', () => {
-    bordersVisibleState = !bordersVisibleState;
-    bordersGroup.visible = bordersVisibleState;
-    btnBorders.setAttribute('aria-pressed', String(bordersVisibleState));
-    appendConsole('Borders visible: ' + bordersVisibleState, 'info');
-  });
-
-  btnZoom.addEventListener('click', () => {
-    toggleZoomStep();
-  });
-
-  // Detail toggles a small cloud overlay if texture loaded; otherwise informs the user.
-  btnDetail.addEventListener('click', () => {
-    if (!cloudsMesh && ASSET_STORE['cloudTexture']) {
-      const cMat = new THREE.MeshLambertMaterial({ map: ASSET_STORE['cloudTexture'], transparent:true, opacity:0.9, depthWrite:false });
-      const cGeo = new THREE.SphereGeometry(RADIUS * 1.008, SEG, SEG);
-      cloudsMesh = new THREE.Mesh(cGeo, cMat);
-      earthMesh.add(cloudsMesh);
-      appendConsole('Cloud overlay applied', 'info');
-      btnDetail.textContent = 'Clouds On';
-    } else if (cloudsMesh) {
-      earthMesh.remove(cloudsMesh);
-      cloudsMesh = null;
-      appendConsole('Cloud overlay removed', 'info');
-      btnDetail.textContent = 'Detail';
-    } else {
-      appendConsole('Cloud texture not available yet', 'warn');
-    }
-  });
-
-  // ---------- Animation loop ----------
-  let last = performance.now();
-  function animate(now) {
-    requestAnimationFrame(animate);
-    const dt = (now - last) / 1000 || 0;
-    last = now;
-
-    if (autoRotate) {
-      // rotation speed scales slightly with zoom level (faster when zoomed out)
-      const rotSpeed = 0.2 / (0.8 + (currentZoomStep + 1) * 0.6);
-      earthMesh.rotation.y += rotSpeed * dt;
-      if (cloudsMesh) cloudsMesh.rotation.y += rotSpeed * dt * 1.1;
-    }
-
-    controls.update();
-    renderer.render(scene, camera);
-  }
+// --- 애니메이션 루프 ---
+function animate(now){
   requestAnimationFrame(animate);
+  if(autoRotate) earthMesh.rotation.y += 0.002;
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
 
-  // ---------- 10-second heartbeat logger ----------
-  let heartbeatCount = 0;
-  const heartbeatIntervalMs = 10000; // 10s
-  const heartbeatId = setInterval(() => {
-    heartbeatCount++;
-    const msg = `Heartbeat ${heartbeatCount} — app running. CameraZ=${camera.position.z.toFixed(2)} RotY=${earthMesh.rotation.y.toFixed(3)}`;
-    appendConsole(msg, 'debug');
-    // also write to native console for devtools
-    console.debug(msg);
-  }, heartbeatIntervalMs);
+// --- 화면 리사이즈 대응 ---
+window.addEventListener('resize',()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
-  // If app is frozen (animation loop not running), heartbeat will also stop — that's intended:
-  // user can inspect console to see no heartbeats.
+// --- 10초 단위 로그 ---
+setInterval(()=>{
+  console.log('10초 경과: Earth is running normally.');
+}, 10000);
 
-  // ---------- Start asset loading (non-blocking) ----------
-  // We run loadAllAssets() which updates the progress indicator as each asset resolves (either success or fail).
-  (async function startAssets(){
-    try {
-      await loadAllAssets();
-      // copy loaded textures into ASSET_STORE key for quick reference; loadAsset already stored them
-      if (ASSET_STORE.smallIcon) appendConsole('smallIcon ready', 'debug');
-      if (ASSET_STORE.cloudTexture) appendConsole('cloudTexture ready', 'debug');
-    } catch (e) {
-      appendConsole('Error in startAssets: ' + e, 'error');
-    }
-  })();
+// --- 예외 시 자동 표시 ---
+window.addEventListener('error', e=>{
+  console.error('Error caught:', e.message);
+});
 
-  // ---------- Expose debug helpers on window ----------
-  window._app = {
-    renderer, scene, camera, earthMesh, controls, appendConsole,
-    stopHeartbeat: () => { clearInterval(heartbeatId); appendConsole('Heartbeat stopped by user', 'info'); },
-    startHeartbeat: () => {
-      // no-op here (we did not implement restart for simplicity)
-      appendConsole('Heartbeat already running or not restartable', 'warn');
-    }
-  };
+console.log('3D Earth UI initialized.');
 
-  // ---------- Responsive resize ----------
-  window.addEventListener('resize', () => {
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    setCameraForViewport();
-  });
-
-  // ---------- Final startup logs ----------
-  appendConsole('App initialized. Starting assets load and UI ready.', 'info');
-  appendConsole('Note: 10s heartbeat started. If heartbeat messages stop, the main loop is likely paused.', 'info');
-
-  // ---------- Helper: loadAsset uses ASSET_STORE to store textures (we need to expose them) ----------
-  // Note: we stored assets in ASSET_STORE inside loadAsset(). For convenience, also reflect to global variable used earlier.
-  // (This block ties earlier ASSET_STORE references to actual loaded values.)
-  (function integrateAssetStore(){
-    // No-op here; ASSET_STORE gets filled via loadAsset, which assigned, so other code checks ASSET_STORE[...] directly.
-    // We keep this function to clarify design in code comments.
-  })();
-
-  // ---------- END MODULE SCRIPT ----------
-  </script>
+</script>
 </body>
 </html>
