@@ -1,245 +1,561 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Interactive 3D Earth</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>Interactive 3D Earth — With On-Page Console</title>
 <style>
-:root{
-  --bg1:#04021a; --bg2:#001933; --accent:#8ae6ff; --ui-bg: rgba(255,255,255,0.04);
-}
-html,body{
-  height:100%; width:100%; margin:0; padding:0;
-  background: radial-gradient(ellipse at 20% 10%, rgba(138,230,255,0.02), transparent 10%),
-              linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 90%);
-  color:#e6f7ff; font-family: Inter, "Noto Sans KR", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; overflow:hidden; touch-action:none;
-}
-#app{position:relative; width:100vw; height:100vh; overflow:hidden; display:block;}
-canvas#glCanvas{display:block; width:100%; height:100%; touch-action:none;}
-#loaderWrap{
-  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-  width:72%; max-width:520px; background:rgba(255,255,255,0.04);
-  border-radius:16px; padding:12px; box-shadow:0 8px 30px rgba(0,0,0,0.6); z-index:60; backdrop-filter:blur(6px);
-}
-#loaderLabel{font-size:13px; color:var(--accent); margin-bottom:8px; text-align:center;}
-#loaderBarOuter{width:100%; height:14px; background: rgba(255,255,255,0.03); border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,0.03);}
-#loaderBarInner{width:0%; height:100%; background: linear-gradient(90deg,var(--accent), #4fffd8); transition: width 180ms linear;}
-#controls{position:absolute; left:50%; transform:translateX(-50%); bottom:16px; display:flex; gap:10px; z-index:70; align-items:center; justify-content:center; pointer-events:auto;}
-.controlBtn{background:var(--ui-bg); border:1px solid rgba(255,255,255,0.06); color:var(--accent); padding:10px 14px; border-radius:12px; font-weight:600; backdrop-filter:blur(6px); box-shadow:0 8px 24px rgba(0,0,0,0.55); cursor:pointer; user-select:none;}
-.controlBtn:active{transform:translateY(1px) scale(0.997);}
-.small{padding:8px 10px; font-size:13px;}
-#topInfo{position:absolute; left:12px; top:12px; z-index:70; padding:8px 12px; background: rgba(0,0,0,0.22); border-radius:10px; color:#cceeff; font-size:13px; border:1px solid rgba(255,255,255,0.03); backdrop-filter: blur(4px);}
-@media(min-width:1024px){#controls{left:auto; right:18px; bottom:18px; transform:none; flex-direction:column;} #loaderWrap{ width:46%; max-width:640px;}}
-@media(max-width:420px){#loaderWrap{width:88%; padding:10px; border-radius:12px;} .controlBtn{padding:10px 12px; font-size:13px;}}
-.controlBtn:focus{outline:2px solid rgba(138,230,255,0.4); outline-offset:3px;}
+  :root{
+    --bg1:#04021a; --bg2:#001933; --accent:#8ae6ff; --ui-bg: rgba(255,255,255,0.04);
+    --console-bg:#07120b; --console-text:#b9f6b9;
+  }
+  html,body{height:100%;width:100%;margin:0;padding:0;background:
+    radial-gradient(ellipse at 20% 10%, rgba(138,230,255,0.02), transparent 10%),
+    linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 90%); color:#e6f7ff;
+    font-family:Inter,"Noto Sans KR",system-ui,-apple-system,"Segoe UI",Roboto,Arial;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    overflow:hidden; touch-action:none;
+  }
+
+  /* App layout: canvas grows, console docked bottom */
+  #app{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;}
+  #canvasWrap{position:relative;flex:1;overflow:hidden;}
+  canvas#glCanvas{display:block;width:100%;height:100%;touch-action:none;background:transparent;}
+
+  /* Loader centered */
+  #loaderWrap{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:72%; max-width:520px; background: rgba(255,255,255,0.04);
+    border-radius:14px; padding:12px; box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    z-index:60; backdrop-filter: blur(6px);
+  }
+  #loaderLabel{font-size:13px;color:var(--accent); margin-bottom:8px; text-align:center;}
+  #loaderBarOuter{width:100%; height:14px; background: rgba(255,255,255,0.03); border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,0.03);}
+  #loaderBarInner{width:0%; height:100%; background: linear-gradient(90deg,var(--accent), #4fffd8); transition: width 160ms linear;}
+
+  /* Controls */
+  #controls{position:absolute; left:50%; transform:translateX(-50%); bottom:18px; display:flex; gap:10px; z-index:70; pointer-events:auto;}
+  .controlBtn{background:var(--ui-bg); border:1px solid rgba(255,255,255,0.06); color:var(--accent); padding:10px 14px; border-radius:12px; font-weight:600; backdrop-filter: blur(6px); box-shadow: 0 8px 24px rgba(0,0,0,0.55); cursor:pointer; user-select:none;}
+  .controlBtn.small{padding:8px 10px; font-size:13px;}
+  .controlBtn:active{ transform: translateY(1px) scale(0.997); }
+  .controlBtn:focus{ outline:2px solid rgba(138,230,255,0.4); outline-offset:3px; }
+
+  /* Top-left info */
+  #topInfo{position:absolute; left:12px; top:12px; z-index:70; padding:8px 12px; background: rgba(0,0,0,0.22); border-radius:10px; color:#cceeff; font-size:13px; border:1px solid rgba(255,255,255,0.03); backdrop-filter: blur(4px);}
+
+  /* Console Dock */
+  #consoleDock{
+    position:fixed; left:0; right:0; bottom:0; height:180px; max-height:40vh; background:var(--console-bg); color:var(--console-text); font-family:monospace; font-size:12px;
+    display:flex; flex-direction:column; border-top:2px solid rgba(255,255,255,0.04); z-index:80;
+  }
+  #consoleHeader{display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:rgba(0,0,0,0.45); border-bottom:1px solid rgba(255,255,255,0.02);}
+  #consoleTitle{color:#9ff7d4; font-weight:700;}
+  #consoleControls{display:flex; gap:8px; align-items:center;}
+  .consBtn{background:transparent;color:var(--console-text);border:1px solid rgba(255,255,255,0.06); padding:4px 8px;border-radius:6px;cursor:pointer;}
+  #consoleBody{flex:1; overflow:auto; padding:8px 12px; white-space:pre-wrap; word-break:break-word; }
+  .log-info{color:#b9f6ff;}
+  .log-warn{color:#fff1a8;}
+  .log-error{color:#ff9b9b;}
+  .log-debug{color:#c8c8ff;}
+
+  /* Small screens: console collapsed by default */
+  @media(max-width:640px){
+    #loaderWrap{ width:88%; padding:10px; border-radius:12px; }
+    #consoleDock{ height:160px; max-height:45vh; font-size:11px; }
+  }
 </style>
 </head>
 <body>
-<div id="app" role="application" aria-label="Interactive 3D Earth">
-  <canvas id="glCanvas" aria-hidden="false"></canvas>
-  <div id="loaderWrap" role="status" aria-live="polite">
-    <div id="loaderLabel">Loading textures & data...</div>
-    <div id="loaderBarOuter"><div id="loaderBarInner" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div>
-    <div style="height:8px"></div>
-    <div style="font-size:12px;color:#dff9ff;opacity:0.85;text-align:center">If loading stalls, check network or use a local static server (e.g., live-server).</div>
+  <div id="app" role="application" aria-label="Interactive 3D Earth">
+    <div id="canvasWrap">
+      <canvas id="glCanvas" aria-hidden="false"></canvas>
+
+      <div id="loaderWrap" role="status" aria-live="polite">
+        <div id="loaderLabel">Loading textures & data...</div>
+        <div id="loaderBarOuter"><div id="loaderBarInner" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div>
+        <div style="height:8px"></div>
+        <div style="font-size:12px;color:#dff9ff;opacity:0.85;text-align:center">If loading stalls, check network or run a local static server (e.g., live-server).</div>
+      </div>
+
+      <div id="topInfo">Drag to rotate • Pinch to zoom (mobile) • Tap to toggle zoom</div>
+
+      <div id="controls" role="toolbar" aria-label="Controls">
+        <button class="controlBtn small" id="btnZoom" aria-pressed="false">확대/축소</button>
+        <button class="controlBtn small" id="btnRotate" aria-pressed="true">자동 회전 On</button>
+        <button class="controlBtn small" id="btnBorders" aria-pressed="false">국경선 On/Off</button>
+        <button class="controlBtn small" id="btnDetail" aria-pressed="false">디테일</button>
+      </div>
+    </div>
+
+    <!-- Console Dock -->
+    <div id="consoleDock" aria-live="polite">
+      <div id="consoleHeader">
+        <div id="consoleTitle">Page Console</div>
+        <div id="consoleControls">
+          <button class="consBtn" id="btnClear">Clear</button>
+          <button class="consBtn" id="btnToggleCollapse">Collapse</button>
+          <button class="consBtn" id="btnDownload">Download</button>
+        </div>
+      </div>
+      <div id="consoleBody" role="log" aria-atomic="false"></div>
+    </div>
   </div>
-  <div id="topInfo">Drag to rotate • Pinch to zoom (mobile) • Tap to toggle zoom</div>
-  <div id="controls" role="toolbar" aria-label="Controls">
-    <button class="controlBtn small" id="btnZoom" aria-pressed="false">확대/축소</button>
-    <button class="controlBtn small" id="btnRotate" aria-pressed="true">자동 회전 On</button>
-    <button class="controlBtn small" id="btnBorders" aria-pressed="false">국경선 On/Off</button>
-    <button class="controlBtn small" id="btnDetail" aria-pressed="false">디테일 단계</button>
-  </div>
-</div>
 
-<script type="module">
-// ---- CDN 모듈 로드 ----
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+  <!-- -----------------------
+       SCRIPT (ES module using CDN)
+       ----------------------- -->
+  <script type="module">
+  // --- Use CDN absolute module paths to avoid "fail to resolve module specifier" errors
+  import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+  import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 
-// ---- DOM ----
-const canvas = document.getElementById('glCanvas');
-const loaderWrap = document.getElementById('loaderWrap');
-const loaderInner = document.getElementById('loaderBarInner');
-const btnZoom = document.getElementById('btnZoom');
-const btnRotate = document.getElementById('btnRotate');
-const btnBorders = document.getElementById('btnBorders');
-const btnDetail = document.getElementById('btnDetail');
-const topInfo = document.getElementById('topInfo');
+  // ---------------------------
+  // On-page console capture
+  // ---------------------------
+  const consoleBody = document.getElementById('consoleBody');
+  const btnClear = document.getElementById('btnClear');
+  const btnToggleCollapse = document.getElementById('btnToggleCollapse');
+  const btnDownload = document.getElementById('btnDownload');
+  let consoleCollapsed = false;
 
-// ---- Renderer, Scene, Camera ----
-const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias:true, alpha:true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputEncoding = THREE.sRGBEncoding;
-
-const scene = new THREE.Scene();
-scene.background = null;
-
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 200);
-function setCameraForViewport(){
-  const w = window.innerWidth;
-  if(w<=420) camera.position.set(0,0,2.6);
-  else if(w<=768) camera.position.set(0,0,3.2);
-  else if(w<=1024) camera.position.set(0,0,3.8);
-  else camera.position.set(0,0,4.6);
-}
-setCameraForViewport();
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enablePan = false;
-controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.rotateSpeed = 0.6;
-controls.zoomSpeed = 0.9;
-controls.minDistance=1.2; controls.maxDistance=12;
-
-// ---- Light ----
-const ambient = new THREE.AmbientLight(0xffffff,0.55); scene.add(ambient);
-const dirLight = new THREE.DirectionalLight(0xffffff,0.95); dirLight.position.set(5,3,5); scene.add(dirLight);
-
-// ---- LoadingManager ----
-const loadingManager = new THREE.LoadingManager();
-loadingManager.onProgress = (url,loaded,total)=>{
-  const pct = Math.round((loaded/total)*100);
-  loaderInner.style.width = pct+'%';
-  loaderInner.setAttribute('aria-valuenow', pct.toString());
-};
-loadingManager.onLoad = ()=>{ setTimeout(()=>{ loaderWrap.style.display='none';},300); };
-loadingManager.onError = url=>{ console.warn('Load error',url); topInfo.textContent='텍스처 불러오기 실패'; };
-
-// ---- TextureLoader ----
-const texLoader = new THREE.TextureLoader(loadingManager);
-
-// ---- Textures ----
-const TEXTURES={
-  base:{
-    map:'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
-    bump:'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-    spec:'https://threejs.org/examples/textures/planets/earthspec1k.jpg',
-    clouds:'https://threejs.org/examples/textures/planets/earth_clouds_1024.png'
-  },
-  detail2:{
-    map:'https://raw.githubusercontent.com/planetarymaps/planetary-maps/main/earth/earthmap4k.jpg',
-    bump:'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-    spec:'https://threejs.org/examples/textures/planets/earthspec1k.jpg'
-  },
-  detail3:{
-    map:'https://raw.githubusercontent.com/jeromeetienne/threex.planets/master/images/earthmap1k.jpg',
-    bump:'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-    spec:'https://threejs.org/examples/textures/planets/earthspec1k.jpg'
+  // append message helper
+  function appendConsole(msg, cls='log-info'){
+    const el = document.createElement('div');
+    el.className = cls;
+    // timestamp
+    const ts = new Date().toLocaleTimeString();
+    el.textContent = `[${ts}] ${msg}`;
+    consoleBody.appendChild(el);
+    consoleBody.scrollTop = consoleBody.scrollHeight;
   }
-};
 
-// ---- Earth + Clouds ----
-const earthGroup = new THREE.Group(); scene.add(earthGroup);
-const RADIUS=1, SEG=64;
-const earthGeo = new THREE.SphereGeometry(RADIUS, SEG, SEG);
-const earthMat = new THREE.MeshPhongMaterial({
-  map: texLoader.load(TEXTURES.base.map),
-  bumpMap: texLoader.load(TEXTURES.base.bump),
-  bumpScale:0.045,
-  specularMap: texLoader.load(TEXTURES.base.spec),
-  specular: new THREE.Color(0x444444),
-  shininess:6
-});
-const earthMesh = new THREE.Mesh(earthGeo, earthMat); earthMesh.name='earth'; earthGroup.add(earthMesh);
+  // Hook original console methods
+  (function hookConsole(){
+    const origLog = console.log.bind(console);
+    const origWarn = console.warn.bind(console);
+    const origError = console.error.bind(console);
+    const origInfo = console.info.bind(console);
+    console.log = (...args) => { origLog(...args); appendConsole(args.map(fmt).join(' '), 'log-info'); };
+    console.info = (...args) => { origInfo(...args); appendConsole(args.map(fmt).join(' '), 'log-info'); };
+    console.warn = (...args) => { origWarn(...args); appendConsole(args.map(fmt).join(' '), 'log-warn'); };
+    console.error = (...args) => { origError(...args); appendConsole(args.map(fmt).join(' '), 'log-error'); };
+    // format helper
+    function fmt(v){ try{ if(typeof v === 'object') return JSON.stringify(v); return String(v);}catch(e){return String(v);} }
+  })();
 
-// Clouds
-const cloudsGeo = new THREE.SphereGeometry(RADIUS*1.008,SEG,SEG);
-const cloudsMat = new THREE.MeshLambertMaterial({
-  map: texLoader.load(TEXTURES.base.clouds),
-  transparent:true, opacity:0.9, depthWrite:false
-});
-const cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat); cloudsMesh.name='clouds'; earthGroup.add(cloudsMesh);
+  // global error / unhandledrejection capture
+  window.addEventListener('error', (ev) => {
+    appendConsole(`${ev.message} — ${ev.filename}:${ev.lineno}`, 'log-error');
+  });
+  window.addEventListener('unhandledrejection', (ev) => {
+    appendConsole(`UnhandledRejection: ${ev.reason}`, 'log-error');
+  });
 
-// ---- GeoJSON Borders ----
-let bordersGroup = null;
-async function loadBorders(url='https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson'){
-  try{
-    const res = await fetch(url); if(!res.ok) throw new Error('HTTP '+res.status);
-    const geo = await res.json();
-    const group = new THREE.Group();
-    const lineMat = new THREE.LineBasicMaterial({color:0x8ee6ff,linewidth:1,transparent:true,opacity:0.9});
-    for(const f of geo.features){
-      const geom=f.geometry;
-      if(!geom) continue;
-      if(geom.type==='Polygon') buildLinesFromPolygon(geom.coordinates,group,lineMat);
-      else if(geom.type==='MultiPolygon') for(const poly of geom.coordinates) buildLinesFromPolygon(poly,group,lineMat);
+  btnClear.addEventListener('click', () => { consoleBody.innerHTML=''; });
+  btnToggleCollapse.addEventListener('click', () => {
+    consoleCollapsed = !consoleCollapsed;
+    document.getElementById('consoleDock').style.height = consoleCollapsed ? '32px' : '180px';
+    btnToggleCollapse.textContent = consoleCollapsed ? 'Expand' : 'Collapse';
+  });
+  btnDownload.addEventListener('click', () => {
+    const text = Array.from(consoleBody.children).map(n => n.textContent).join('\n');
+    const blob = new Blob([text], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `page-console-${Date.now()}.txt`; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Initial message
+  appendConsole('Console initialized. Open devtools for full stack traces if needed.', 'log-info');
+
+  // ---------------------------
+  // DOM elements for scene
+  // ---------------------------
+  const canvas = document.getElementById('glCanvas');
+  const loaderWrap = document.getElementById('loaderWrap');
+  const loaderInner = document.getElementById('loaderBarInner');
+  const btnZoom = document.getElementById('btnZoom');
+  const btnRotate = document.getElementById('btnRotate');
+  const btnBorders = document.getElementById('btnBorders');
+  const btnDetail = document.getElementById('btnDetail');
+  const topInfo = document.getElementById('topInfo');
+
+  // ---------------------------
+  // Renderer / Scene / Camera
+  // ---------------------------
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.physicallyCorrectLights = false;
+
+  const scene = new THREE.Scene();
+  scene.background = null;
+
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+
+  function setCameraForViewport() {
+    const w = window.innerWidth;
+    if (w <= 420) camera.position.set(0, 0, 2.6);
+    else if (w <= 768) camera.position.set(0, 0, 3.2);
+    else if (w <= 1024) camera.position.set(0, 0, 3.8);
+    else camera.position.set(0, 0, 4.6);
+  }
+  setCameraForViewport();
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enablePan = false;
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.rotateSpeed = 0.6;
+  controls.zoomSpeed = 0.9;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 12;
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0xffffff, 0.55); scene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.95); dirLight.position.set(5, 3, 5); scene.add(dirLight);
+
+  // ---------------------------
+  // LoadingManager + TextureLoader (single declaration)
+  // ---------------------------
+  const loadingManager = new THREE.LoadingManager();
+  loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+    const pct = Math.round((itemsLoaded / itemsTotal) * 100);
+    loaderInner.style.width = pct + '%';
+    loaderInner.setAttribute('aria-valuenow', pct.toString());
+    loaderInner.title = pct + '%';
+  };
+  loadingManager.onLoad = () => {
+    setTimeout(() => { loaderWrap.style.display = 'none'; }, 300);
+    appendConsole('All resources loaded.', 'log-info');
+  };
+  loadingManager.onError = (url) => {
+    topInfo.textContent = '텍스처 불러오기 실패 — 네트워크 확인';
+    appendConsole('Loading error: ' + url, 'log-error');
+  };
+
+  const texLoader = new THREE.TextureLoader(loadingManager); // <<-- only declared once
+
+  // ---------------------------
+  // Textures & detail levels
+  // ---------------------------
+  const TEXTURES = {
+    base: {
+      map: 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
+      bump: 'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
+      spec: 'https://threejs.org/examples/textures/planets/earthspec1k.jpg',
+      clouds: 'https://threejs.org/examples/textures/planets/earth_clouds_1024.png'
+    },
+    detail2: {
+      map: 'https://raw.githubusercontent.com/planetarymaps/planetary-maps/main/earth/earthmap4k.jpg',
+      bump: 'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
+      spec: 'https://threejs.org/examples/textures/planets/earthspec1k.jpg'
+    },
+    detail3: {
+      map: 'https://raw.githubusercontent.com/jeromeetienne/threex.planets/master/images/earthmap1k.jpg',
+      bump: 'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
+      spec: 'https://threejs.org/examples/textures/planets/earthspec1k.jpg'
     }
-    group.name='borders'; group.scale.set(1.002,1.002,1.002); group.visible=false;
-    bordersGroup = group; earthGroup.add(bordersGroup);
-  }catch(err){ console.warn('Borders fail',err); topInfo.textContent='국경선 데이터 불러오기 실패'; }
-}
-function buildLinesFromPolygon(polygonCoords,group,material){
-  for(const ring of polygonCoords){
-    const points = [];
-    for(const coord of ring){
-      const lon=coord[0]*Math.PI/180;
-      const lat=coord[1]*Math.PI/180;
-      const x=Math.cos(lat)*Math.cos(lon);
-      const y=Math.sin(lat);
-      const z=Math.cos(lat)*Math.sin(lon);
-      points.push(new THREE.Vector3(x,y,z));
+  };
+
+  // preload base textures (these will be tracked by loadingManager)
+  const baseMap = texLoader.load(TEXTURES.base.map);
+  const baseBump = texLoader.load(TEXTURES.base.bump);
+  const baseSpec = texLoader.load(TEXTURES.base.spec);
+  const baseCloud = texLoader.load(TEXTURES.base.clouds);
+
+  // ---------------------------
+  // Earth object + clouds
+  // ---------------------------
+  const earthGroup = new THREE.Group(); scene.add(earthGroup);
+  const RADIUS = 1.0;
+  const SEG = 64;
+  const earthGeo = new THREE.SphereGeometry(RADIUS, SEG, SEG);
+  const earthMat = new THREE.MeshPhongMaterial({
+    map: baseMap,
+    bumpMap: baseBump,
+    bumpScale: 0.045,
+    specularMap: baseSpec,
+    specular: new THREE.Color(0x444444),
+    shininess: 6
+  });
+  const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+  earthMesh.name = 'earth';
+  earthGroup.add(earthMesh);
+
+  const cloudsGeo = new THREE.SphereGeometry(RADIUS * 1.008, SEG, SEG);
+  const cloudsMat = new THREE.MeshLambertMaterial({
+    map: baseCloud,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false
+  });
+  const cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat);
+  cloudsMesh.name = 'clouds';
+  earthGroup.add(cloudsMesh);
+
+  // optional night lights overlay
+  const lightsMat = new THREE.MeshBasicMaterial({
+    map: baseSpec,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    opacity: 0.22
+  });
+  const lightsMesh = new THREE.Mesh(earthGeo.clone(), lightsMat);
+  lightsMesh.visible = false;
+  earthGroup.add(lightsMesh);
+
+  // ---------------------------
+  // GeoJSON borders
+  // ---------------------------
+  let bordersGroup = null;
+  async function loadBorders(url = 'https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson') {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const geo = await res.json();
+      const group = new THREE.Group();
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x8ee6ff, linewidth: 1, transparent: true, opacity: 0.9 });
+      for (const f of geo.features) {
+        const geom = f.geometry;
+        if (!geom) continue;
+        if (geom.type === 'Polygon') buildLinesFromPolygon(geom.coordinates, group, lineMat);
+        else if (geom.type === 'MultiPolygon') for (const poly of geom.coordinates) buildLinesFromPolygon(poly, group, lineMat);
+      }
+      group.name = 'borders';
+      group.scale.set(1.002, 1.002, 1.002);
+      group.visible = false;
+      bordersGroup = group;
+      earthGroup.add(bordersGroup);
+      appendConsole('Borders loaded and added to scene.', 'log-info');
+    } catch (err) {
+      console.warn('Failed to load borders:', err);
+      appendConsole('Failed to load borders: ' + err, 'log-warn');
+      topInfo.textContent = '국경선 데이터 불러오기 실패 — 네트워크를 확인하세요.';
     }
-    if(points.length>1){
-      const geometry=new THREE.BufferGeometry().setFromPoints(points);
-      const line = new THREE.Line(geometry,material); group.add(line);
+  }
+  function buildLinesFromPolygon(polygonCoords, group, material) {
+    for (const ring of polygonCoords) {
+      const points = [];
+      for (const coord of ring) {
+        const lon = coord[0] * Math.PI / 180;
+        const lat = coord[1] * Math.PI / 180;
+        const x = Math.cos(lat) * Math.cos(lon);
+        const y = Math.sin(lat);
+        const z = Math.cos(lat) * Math.sin(lon);
+        points.push(new THREE.Vector3(x, y, z));
+      }
+      if (points.length > 1) {
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const line = new THREE.Line(geometry, material);
+        group.add(line);
+      }
     }
   }
-}
-loadBorders();
+  loadBorders();
 
-// ---- State ----
-let autoRotate=true, bordersVisible=false;
-const DETAIL_LEVELS=[TEXTURES.base,TEXTURES.detail2,TEXTURES.detail3];
-let currentDetail=0;
-const ZOOM_STEPS=[3.2,2.0,1.2]; let currentZoomStep=0;
-let pinchStart=null, lastTap=0;
+  // ---------------------------
+  // State & detail / zoom
+  // ---------------------------
+  let autoRotate = true;
+  let bordersVisible = false;
+  let lightsVisible = false;
+  const DETAIL_LEVELS = [
+    { name: 'Base', map: TEXTURES.base.map, bump: TEXTURES.base.bump, spec: TEXTURES.base.spec },
+    { name: 'Detail-2', map: TEXTURES.detail2.map, bump: TEXTURES.detail2.bump, spec: TEXTURES.detail2.spec },
+    { name: 'Detail-3', map: TEXTURES.detail3.map, bump: TEXTURES.detail3.bump, spec: TEXTURES.detail3.spec }
+  ];
+  let currentDetail = 0;
+  const ZOOM_STEPS = [3.2, 2.0, 1.3];
+  let currentZoomStep = 0;
 
-// ---- Gestures ----
-function getDistance(t1,t2){ const dx=t1.clientX-t2.clientX, dy=t1.clientY-t2.clientY; return Math.sqrt(dx*dx+dy*dy); }
-canvas.addEventListener('touchstart',evt=>{ if(evt.touches.length===2) pinchStart=getDistance(evt.touches[0],evt.touches[1]);},{passive:true});
-canvas.addEventListener('touchmove',evt=>{
-  if(evt.touches.length===2 && pinchStart!=null){
-    const d=getDistance(evt.touches[0],evt.touches[1]);
-    const delta=(pinchStart-d)*0.01;
-    camera.position.z = THREE.MathUtils.clamp(camera.position.z+delta,1,12);
-    pinchStart=d;
+  // pinch/tap
+  let pinchStartDistance = null;
+  let lastTap = 0;
+
+  function getDistanceFromTouches(t1, t2) {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
   }
-},{passive:true});
-canvas.addEventListener('touchend',evt=>{
-  if(evt.touches.length<2) pinchStart=null;
-  if(evt.changedTouches && evt.changedTouches.length===1){
-    const now=Date.now();
-    if(now-lastTap<350){ resetZoom(); lastTap=0; } else { setTimeout(()=>{ if(Date.now()-lastTap>=350) toggleZoomStep(); },360); lastTap=now; }
+
+  canvas.addEventListener('touchstart', (evt) => {
+    if (evt.touches.length === 2) {
+      pinchStartDistance = getDistanceFromTouches(evt.touches[0], evt.touches[1]);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (evt) => {
+    if (evt.touches.length === 2 && pinchStartDistance != null) {
+      const newDist = getDistanceFromTouches(evt.touches[0], evt.touches[1]);
+      const delta = (pinchStartDistance - newDist) * 0.01;
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z + delta, 1.0, 12);
+      pinchStartDistance = newDist;
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', (evt) => {
+    if (evt.touches.length < 2) pinchStartDistance = null;
+    if (evt.changedTouches && evt.changedTouches.length === 1) {
+      const now = Date.now();
+      if (now - lastTap < 350) {
+        // double-tap: reset zoom
+        resetZoom();
+        lastTap = 0;
+      } else {
+        // single tap candidate
+        setTimeout(() => {
+          if (Date.now() - lastTap >= 350) toggleZoomStep();
+        }, 360);
+        lastTap = now;
+      }
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    camera.position.z = THREE.MathUtils.clamp(camera.position.z + e.deltaY * 0.002, 1.0, 12);
+  }, { passive: false });
+
+  // ---------------------------
+  // Helpers: zoom transitions & texture loader promise
+  // ---------------------------
+  function smoothCameraTo(targetZ, duration = 400) {
+    const startZ = camera.position.z;
+    const start = performance.now();
+    return new Promise((resolve) => {
+      function tick(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        camera.position.z = THREE.MathUtils.lerp(startZ, targetZ, eased);
+        if (t < 1) requestAnimationFrame(tick);
+        else resolve();
+      }
+      requestAnimationFrame(tick);
+    });
   }
-},{passive:true});
-canvas.addEventListener('wheel',e=>{ e.preventDefault(); camera.position.z = THREE.MathUtils.clamp(camera.position.z+e.deltaY*0.002,1,12);},{passive:false});
 
-// ---- Helpers ----
-function toggleZoomStep(){ currentZoomStep=(currentZoomStep+1)%ZOOM_STEPS.length; smoothCameraTo(ZOOM_STEPS[currentZoomStep],280);}
-function resetZoom(){ currentZoomStep=0; smoothCameraTo(ZOOM_STEPS[0],280);}
-function smoothCameraTo(target,duration=400){ const startZ=camera.position.z, start=performance.now(); return new Promise(resolve=>{ function tick(now){ const t=Math.min(1,(now-start)/duration); const eased=1-Math.pow(1-t,3); camera.position.z=THREE.MathUtils.lerp(startZ,target,eased); if(t<1) requestAnimationFrame(tick); else resolve();} requestAnimationFrame(tick);});}
+  function toggleZoomStep() {
+    currentZoomStep = (currentZoomStep + 1) % ZOOM_STEPS.length;
+    const baseZ = (window.innerWidth <= 768) ? 3.2 : 4.6;
+    const target = ZOOM_STEPS[currentZoomStep];
+    smoothCameraTo(target, 300);
+    earthMat.bumpScale = 0.04 + 0.02 * currentZoomStep;
+  }
 
-// ---- Button Events ----
-btnRotate.addEventListener('click',()=>{ autoRotate=!autoRotate; btnRotate.textContent=autoRotate?'자동 회전 On':'자동 회전 Off'; btnRotate.setAttribute('aria-pressed',autoRotate.toString()); });
-btnBorders.addEventListener('click',()=>{ bordersVisible=!bordersVisible; if(bordersGroup) bordersGroup.visible=bordersVisible; btnBorders.setAttribute('aria-pressed',bordersVisible.toString()); });
-btnZoom.addEventListener('click',toggleZoomStep);
-btnDetail.addEventListener('click',()=>{
-  currentDetail=(currentDetail+1)%DETAIL_LEVELS.length;
-  const d=DETAIL_LEVELS[currentDetail];
-  earthMat.map=texLoader.load(d.map); earthMat.bumpMap=texLoader.load(d.bump); earthMat.specularMap=texLoader.load(d.spec); earthMat.needsUpdate=true;
-  btnDetail.textContent=`디테일: ${currentDetail+1}`; btnDetail.setAttribute('aria-pressed','true');
-});
+  function resetZoom() {
+    currentZoomStep = 0;
+    setCameraForViewport();
+    earthMat.bumpScale = 0.045;
+  }
 
-// ---- Responsive ----
-window.addEventListener('resize',()=>{ renderer.setSize(window.innerWidth,window.innerHeight); camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); setCameraForViewport(); });
+  function texLoaderPromise(url) {
+    return new Promise((resolve, reject) => {
+      texLoader.load(url, (tx) => resolve(tx), undefined, (err) => reject(err));
+    });
+  }
 
-// ---- Animate ----
-function animate(){ requestAnimationFrame(animate); if(autoRotate) earthGroup.rotation.y+=0.0009; cloudsMesh.rotation.y+=0.0012; controls.update(); renderer.render(scene,camera); }
-animate();
-</script>
+  // ---------------------------
+  // UI button handlers
+  // ---------------------------
+  btnRotate.addEventListener('click', () => {
+    autoRotate = !autoRotate;
+    btnRotate.textContent = autoRotate ? '자동 회전 On' : '자동 회전 Off';
+    btnRotate.setAttribute('aria-pressed', String(autoRotate));
+    appendConsole(`Auto-rotate: ${autoRotate}`, 'log-info');
+  });
+
+  btnBorders.addEventListener('click', () => {
+    bordersVisible = !bordersVisible;
+    if (bordersGroup) bordersGroup.visible = bordersVisible;
+    btnBorders.setAttribute('aria-pressed', String(bordersVisible));
+    appendConsole(`Borders visible: ${bordersVisible}`, 'log-info');
+  });
+
+  btnZoom.addEventListener('click', () => { toggleZoomStep(); appendConsole(`Zoom step: ${currentZoomStep}`, 'log-info'); });
+
+  btnDetail.addEventListener('click', async () => {
+    currentDetail = (currentDetail + 1) % DETAIL_LEVELS.length;
+    btnDetail.setAttribute('aria-pressed', String(true));
+    btnDetail.textContent = `디테일: ${DETAIL_LEVELS[currentDetail].name}`;
+    appendConsole(`Swapping to detail: ${DETAIL_LEVELS[currentDetail].name}`, 'log-info');
+    try {
+      loaderWrap.style.display = 'block';
+      loaderInner.style.width = '0%';
+      const [m1, b1, s1] = await Promise.all([
+        texLoaderPromise(DETAIL_LEVELS[currentDetail].map),
+        texLoaderPromise(DETAIL_LEVELS[currentDetail].bump),
+        texLoaderPromise(DETAIL_LEVELS[currentDetail].spec)
+      ]);
+      earthMat.map = m1;
+      earthMat.bumpMap = b1;
+      earthMat.specularMap = s1;
+      earthMat.needsUpdate = true;
+      appendConsole('Detail swap complete.', 'log-info');
+      setTimeout(() => { loaderWrap.style.display = 'none'; }, 300);
+    } catch (err) {
+      appendConsole('Detail swap failed: ' + err, 'log-error');
+      topInfo.textContent = '고해상도 텍스처 불러오기 실패';
+    }
+  });
+
+  // ---------------------------
+  // Animation loop
+  // ---------------------------
+  let last = performance.now();
+  function render(now) {
+    const dt = (now - last) / 1000 || 0;
+    last = now;
+    if (autoRotate) {
+      const rotSpeed = 0.2 / (0.8 + (currentZoomStep + 1) * 0.6);
+      earthMesh.rotation.y += rotSpeed * dt;
+      cloudsMesh.rotation.y += rotSpeed * dt * 1.2;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(render);
+  }
+  requestAnimationFrame(render);
+
+  // ---------------------------
+  // Preload other textures (non-blocking)
+  // ---------------------------
+  function preloadTexturesForDetailLevels() {
+    const allUrls = new Set();
+    for (const k in TEXTURES) {
+      const t = TEXTURES[k];
+      if (t.map) allUrls.add(t.map);
+      if (t.bump) allUrls.add(t.bump);
+      if (t.spec) allUrls.add(t.spec);
+    }
+    for (const u of allUrls) {
+      texLoader.load(u, () => { /* intentionally empty */ }, undefined, () => { appendConsole('Preload fail: ' + u, 'log-warn'); });
+    }
+  }
+  preloadTexturesForDetailLevels();
+
+  // ---------------------------
+  // Responsive resize
+  // ---------------------------
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+    setCameraForViewport();
+  });
+
+  // expose some debug objects
+  window._three = { renderer, scene, camera, earthMesh, cloudsMesh, controls };
+
+  appendConsole('Three scene initialized. Camera position: ' + camera.position.z, 'log-info');
+
+  // ---------------------------
+  // Safety / sanity logs
+  // ---------------------------
+  // If any resource fails in manager, loadingManager.onError will log it.
+  </script>
 </body>
 </html>
