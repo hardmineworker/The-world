@@ -3,65 +3,91 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>Interactive 3D Earth — With On-Page Console</title>
+<title>Earth — Simple & Clean (Full code with console & progress)</title>
 <style>
+  /* ===========================
+     전체 레이아웃 & 기본 스타일
+     =========================== */
   :root{
-    --bg1:#04021a; --bg2:#001933; --accent:#8ae6ff; --ui-bg: rgba(255,255,255,0.04);
-    --console-bg:#07120b; --console-text:#b9f6b9;
+    --bg1:#030217;
+    --bg2:#001a2e;
+    --accent:#8ae6ff;
+    --ui-bg: rgba(255,255,255,0.04);
+    --console-bg:#07120b;
+    --text:#e6f7ff;
   }
   html,body{height:100%;width:100%;margin:0;padding:0;background:
     radial-gradient(ellipse at 20% 10%, rgba(138,230,255,0.02), transparent 10%),
-    linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 90%); color:#e6f7ff;
-    font-family:Inter,"Noto Sans KR",system-ui,-apple-system,"Segoe UI",Roboto,Arial;
+    linear-gradient(180deg,var(--bg1) 0%, var(--bg2) 90%);
+    color:var(--text); font-family: Inter, "Noto Sans KR", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
     -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-    overflow:hidden; touch-action:none;
+    overflow:hidden;
   }
 
-  /* App layout: canvas grows, console docked bottom */
-  #app{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;}
-  #canvasWrap{position:relative;flex:1;overflow:hidden;}
-  canvas#glCanvas{display:block;width:100%;height:100%;touch-action:none;background:transparent;}
+  /* 앱 전체 컨테이너: 캔버스(확장) + 하단 콘솔(고정) */
+  #app { position:relative; width:100vw; height:100vh; display:flex; flex-direction:column; }
+  #canvasWrap { position:relative; flex:1; overflow:hidden; }
+  canvas#glCanvas { width:100%; height:100%; display:block; touch-action:none; }
 
-  /* Loader centered */
+  /* 상단 UI 자리(좌/우) */
+  #topLeft {
+    position:absolute; left:12px; top:12px; z-index:80;
+    background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.02);
+    display:flex; gap:8px; align-items:center; color:#cfefff; font-size:13px; backdrop-filter: blur(4px);
+  }
+  #topLeft .pingDot {
+    width:12px; height:12px; border-radius:50%; background:rgba(255,100,100,0.95);
+    display:inline-block; box-shadow:0 0 8px rgba(255,100,100,0.6);
+  }
+  #topRight {
+    position:absolute; right:12px; top:12px; z-index:80;
+    background:rgba(0,0,0,0.22); padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.02);
+    display:flex; gap:10px; align-items:center; color:#cfefff; font-size:13px; backdrop-filter: blur(4px);
+  }
+  #avatar {
+    width:34px; height:34px; border-radius:6px; background:linear-gradient(180deg,#5ad,#2ac);
+    display:inline-block; flex-shrink:0;
+  }
+  #userInfo { display:flex; flex-direction:column; gap:2px; }
+  #userInfo .name { font-weight:700; font-size:13px; }
+  #userInfo .status { font-size:11px; color:#bfeefc; opacity:0.85; }
+
+  /* Loader (중앙) */
   #loaderWrap{
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    width:72%; max-width:520px; background: rgba(255,255,255,0.04);
-    border-radius:14px; padding:12px; box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-    z-index:60; backdrop-filter: blur(6px);
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:75;
+    width:72%; max-width:520px; background:var(--ui-bg); padding:12px; border-radius:14px; text-align:center;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6); backdrop-filter: blur(6px);
   }
-  #loaderLabel{font-size:13px;color:var(--accent); margin-bottom:8px; text-align:center;}
-  #loaderBarOuter{width:100%; height:14px; background: rgba(255,255,255,0.03); border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,0.03);}
-  #loaderBarInner{width:0%; height:100%; background: linear-gradient(90deg,var(--accent), #4fffd8); transition: width 160ms linear;}
+  #loaderLabel { font-size:13px; color:var(--accent); margin-bottom:8px; }
+  #loaderBarOuter { width:100%; height:14px; background:rgba(255,255,255,0.03); border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,0.03); }
+  #loaderBarInner { width:0%; height:100%; background: linear-gradient(90deg,var(--accent), #4fffd8); transition: width 140ms linear; }
 
-  /* Controls */
-  #controls{position:absolute; left:50%; transform:translateX(-50%); bottom:18px; display:flex; gap:10px; z-index:70; pointer-events:auto;}
-  .controlBtn{background:var(--ui-bg); border:1px solid rgba(255,255,255,0.06); color:var(--accent); padding:10px 14px; border-radius:12px; font-weight:600; backdrop-filter: blur(6px); box-shadow: 0 8px 24px rgba(0,0,0,0.55); cursor:pointer; user-select:none;}
-  .controlBtn.small{padding:8px 10px; font-size:13px;}
-  .controlBtn:active{ transform: translateY(1px) scale(0.997); }
-  .controlBtn:focus{ outline:2px solid rgba(138,230,255,0.4); outline-offset:3px; }
+  /* 컨트롤 (하단 중앙) */
+  #controls { position:absolute; left:50%; transform:translateX(-50%); bottom:20px; z-index:80; display:flex; gap:10px; }
+  .controlBtn { background:var(--ui-bg); border:1px solid rgba(255,255,255,0.06); color:var(--accent); padding:10px 14px; border-radius:12px; font-weight:600; cursor:pointer; backdrop-filter: blur(6px); box-shadow:0 8px 24px rgba(0,0,0,0.55); }
+  .controlBtn:active{ transform:translateY(1px) scale(0.997); }
 
-  /* Top-left info */
-  #topInfo{position:absolute; left:12px; top:12px; z-index:70; padding:8px 12px; background: rgba(0,0,0,0.22); border-radius:10px; color:#cceeff; font-size:13px; border:1px solid rgba(255,255,255,0.03); backdrop-filter: blur(4px);}
-
-  /* Console Dock */
-  #consoleDock{
-    position:fixed; left:0; right:0; bottom:0; height:180px; max-height:40vh; background:var(--console-bg); color:var(--console-text); font-family:monospace; font-size:12px;
-    display:flex; flex-direction:column; border-top:2px solid rgba(255,255,255,0.04); z-index:80;
+  /* 콘솔 도크(하단) */
+  #consoleDock {
+    position:fixed; left:0; right:0; bottom:0; height:220px; max-height:45vh; background:var(--console-bg);
+    color:#b9f6b9; font-family:monospace; font-size:12px; display:flex; flex-direction:column; border-top:1px solid rgba(255,255,255,0.03); z-index:90;
   }
-  #consoleHeader{display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:rgba(0,0,0,0.45); border-bottom:1px solid rgba(255,255,255,0.02);}
-  #consoleTitle{color:#9ff7d4; font-weight:700;}
-  #consoleControls{display:flex; gap:8px; align-items:center;}
-  .consBtn{background:transparent;color:var(--console-text);border:1px solid rgba(255,255,255,0.06); padding:4px 8px;border-radius:6px;cursor:pointer;}
-  #consoleBody{flex:1; overflow:auto; padding:8px 12px; white-space:pre-wrap; word-break:break-word; }
-  .log-info{color:#b9f6ff;}
-  .log-warn{color:#fff1a8;}
-  .log-error{color:#ff9b9b;}
-  .log-debug{color:#c8c8ff;}
+  #consoleHeader { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:rgba(0,0,0,0.45); border-bottom:1px solid rgba(255,255,255,0.02); color:#9ff7d4; }
+  #consoleBody { flex:1; overflow:auto; padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
+  .log-info { color:#b9f6ff; }
+  .log-warn { color:#fff1a8; }
+  .log-error { color:#ff9b9b; font-weight:700; }
+  .log-debug { color:#c8c8ff; }
 
-  /* Small screens: console collapsed by default */
-  @media(max-width:640px){
+  /* 콘솔 버튼들 */
+  .consBtn { background:transparent; color:var(--console-bg); border:1px solid rgba(255,255,255,0.06); padding:6px 8px; border-radius:6px; cursor:pointer; }
+  #consoleHeader .right { display:flex; gap:8px; align-items:center; }
+
+  /* 반응형 */
+  @media(max-width:420px){
     #loaderWrap{ width:88%; padding:10px; border-radius:12px; }
-    #consoleDock{ height:160px; max-height:45vh; font-size:11px; }
+    #consoleDock{ height:180px; font-size:11px; }
+    .controlBtn{ padding:8px 10px; font-size:13px; }
   }
 </style>
 </head>
@@ -70,108 +96,73 @@
     <div id="canvasWrap">
       <canvas id="glCanvas" aria-hidden="false"></canvas>
 
+      <!-- 상단 좌: Ping 자리(빈 자리로 둠) -->
+      <div id="topLeft" aria-hidden="false">
+        <span class="pingDot" title="Ping placeholder"></span>
+        <span>PING</span>
+      </div>
+
+      <!-- 상단 우: 로그인 정보 자리 -->
+      <div id="topRight" aria-hidden="false">
+        <div id="avatar" aria-hidden="true"></div>
+        <div id="userInfo">
+          <div class="name" id="userName">Guest</div>
+          <div class="status" id="userStatus">Not signed in</div>
+        </div>
+      </div>
+
+      <!-- 중앙 로더 -->
       <div id="loaderWrap" role="status" aria-live="polite">
         <div id="loaderLabel">Loading textures & data...</div>
         <div id="loaderBarOuter"><div id="loaderBarInner" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div></div>
         <div style="height:8px"></div>
-        <div style="font-size:12px;color:#dff9ff;opacity:0.85;text-align:center">If loading stalls, check network or run a local static server (e.g., live-server).</div>
+        <div style="font-size:12px;color:#dff9ff;opacity:0.85;text-align:center">If loading stalls, please check network or run a local static server (live-server).</div>
       </div>
 
-      <div id="topInfo">Drag to rotate • Pinch to zoom (mobile) • Tap to toggle zoom</div>
-
+      <!-- 하단 중앙 컨트롤 -->
       <div id="controls" role="toolbar" aria-label="Controls">
-        <button class="controlBtn small" id="btnZoom" aria-pressed="false">확대/축소</button>
-        <button class="controlBtn small" id="btnRotate" aria-pressed="true">자동 회전 On</button>
-        <button class="controlBtn small" id="btnBorders" aria-pressed="false">국경선 On/Off</button>
-        <button class="controlBtn small" id="btnDetail" aria-pressed="false">디테일</button>
+        <button class="controlBtn" id="btnZoom" aria-pressed="false">Zoom</button>
+        <button class="controlBtn" id="btnRotate" aria-pressed="true">Auto Rotate</button>
+        <button class="controlBtn" id="btnBorders" aria-pressed="false">Borders</button>
+        <button class="controlBtn" id="btnDetail" aria-pressed="false">Detail</button>
       </div>
     </div>
 
-    <!-- Console Dock -->
-    <div id="consoleDock" aria-live="polite">
+    <!-- 하단 콘솔 도크 -->
+    <div id="consoleDock" aria-live="polite" aria-atomic="false">
       <div id="consoleHeader">
-        <div id="consoleTitle">Page Console</div>
-        <div id="consoleControls">
-          <button class="consBtn" id="btnClear">Clear</button>
-          <button class="consBtn" id="btnToggleCollapse">Collapse</button>
-          <button class="consBtn" id="btnDownload">Download</button>
+        <div>Page Console</div>
+        <div class="right">
+          <button id="btnClear" class="consBtn">Clear</button>
+          <button id="btnCollapse" class="consBtn">Collapse</button>
+          <button id="btnDownload" class="consBtn">Download</button>
         </div>
       </div>
       <div id="consoleBody" role="log" aria-atomic="false"></div>
     </div>
   </div>
 
-  <!-- -----------------------
-       SCRIPT (ES module using CDN)
-       ----------------------- -->
+  <!-- ============================
+       Full JS (ES Module) - Long & commented
+       ============================ -->
   <script type="module">
-  // --- Use CDN absolute module paths to avoid "fail to resolve module specifier" errors
+  /*************************************************************************
+   * Full single-file implementation
+   * - Three.js via CDN (module)
+   * - Simple, clean Earth (Phong) + optional satellite detail texture
+   * - Robust progress bar using manual counting of assets (avoids stuck gauge)
+   * - On-page console: shows logs, warnings, errors; visual alert on errors
+   * - UI placeholders: left ping, right user info
+   * - Mobile gestures: pinch to zoom, tap/double-tap, wheel zoom
+   *
+   * Save as HTML and serve over HTTP(S) (e.g., live-server). file:// WILL NOT work.
+   *************************************************************************/
+
+  // ---------- Imports (CDN module paths to avoid "fail to resolve module specifier") ----------
   import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
   import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 
-  // ---------------------------
-  // On-page console capture
-  // ---------------------------
-  const consoleBody = document.getElementById('consoleBody');
-  const btnClear = document.getElementById('btnClear');
-  const btnToggleCollapse = document.getElementById('btnToggleCollapse');
-  const btnDownload = document.getElementById('btnDownload');
-  let consoleCollapsed = false;
-
-  // append message helper
-  function appendConsole(msg, cls='log-info'){
-    const el = document.createElement('div');
-    el.className = cls;
-    // timestamp
-    const ts = new Date().toLocaleTimeString();
-    el.textContent = `[${ts}] ${msg}`;
-    consoleBody.appendChild(el);
-    consoleBody.scrollTop = consoleBody.scrollHeight;
-  }
-
-  // Hook original console methods
-  (function hookConsole(){
-    const origLog = console.log.bind(console);
-    const origWarn = console.warn.bind(console);
-    const origError = console.error.bind(console);
-    const origInfo = console.info.bind(console);
-    console.log = (...args) => { origLog(...args); appendConsole(args.map(fmt).join(' '), 'log-info'); };
-    console.info = (...args) => { origInfo(...args); appendConsole(args.map(fmt).join(' '), 'log-info'); };
-    console.warn = (...args) => { origWarn(...args); appendConsole(args.map(fmt).join(' '), 'log-warn'); };
-    console.error = (...args) => { origError(...args); appendConsole(args.map(fmt).join(' '), 'log-error'); };
-    // format helper
-    function fmt(v){ try{ if(typeof v === 'object') return JSON.stringify(v); return String(v);}catch(e){return String(v);} }
-  })();
-
-  // global error / unhandledrejection capture
-  window.addEventListener('error', (ev) => {
-    appendConsole(`${ev.message} — ${ev.filename}:${ev.lineno}`, 'log-error');
-  });
-  window.addEventListener('unhandledrejection', (ev) => {
-    appendConsole(`UnhandledRejection: ${ev.reason}`, 'log-error');
-  });
-
-  btnClear.addEventListener('click', () => { consoleBody.innerHTML=''; });
-  btnToggleCollapse.addEventListener('click', () => {
-    consoleCollapsed = !consoleCollapsed;
-    document.getElementById('consoleDock').style.height = consoleCollapsed ? '32px' : '180px';
-    btnToggleCollapse.textContent = consoleCollapsed ? 'Expand' : 'Collapse';
-  });
-  btnDownload.addEventListener('click', () => {
-    const text = Array.from(consoleBody.children).map(n => n.textContent).join('\n');
-    const blob = new Blob([text], {type:'text/plain'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `page-console-${Date.now()}.txt`; a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  // Initial message
-  appendConsole('Console initialized. Open devtools for full stack traces if needed.', 'log-info');
-
-  // ---------------------------
-  // DOM elements for scene
-  // ---------------------------
+  // ---------- Utility: DOM references ----------
   const canvas = document.getElementById('glCanvas');
   const loaderWrap = document.getElementById('loaderWrap');
   const loaderInner = document.getElementById('loaderBarInner');
@@ -179,19 +170,81 @@
   const btnRotate = document.getElementById('btnRotate');
   const btnBorders = document.getElementById('btnBorders');
   const btnDetail = document.getElementById('btnDetail');
-  const topInfo = document.getElementById('topInfo');
+  const consoleBody = document.getElementById('consoleBody');
+  const btnClear = document.getElementById('btnClear');
+  const btnCollapse = document.getElementById('btnCollapse');
+  const btnDownload = document.getElementById('btnDownload');
+  const userNameEl = document.getElementById('userName');
+  const userStatusEl = document.getElementById('userStatus');
 
-  // ---------------------------
-  // Renderer / Scene / Camera
-  // ---------------------------
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+  // ---------- On-page console: captures console.* and window errors ----------
+  // Append a line to the console body with class based on type
+  function appendConsole(text, type='info') {
+    const el = document.createElement('div');
+    el.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+    el.className = type === 'error' ? 'log-error' : type === 'warn' ? 'log-warn' : type === 'debug' ? 'log-debug' : 'log-info';
+    consoleBody.appendChild(el);
+    consoleBody.scrollTop = consoleBody.scrollHeight;
+
+    // Visual alert: if error, briefly flash console header/background
+    if (type === 'error') {
+      const dock = document.getElementById('consoleDock');
+      dock.animate([{ boxShadow: '0 0 0px rgba(255,0,0,0)' }, { boxShadow: '0 0 18px rgba(255,0,0,0.6)' }, { boxShadow: '0 0 0px rgba(255,0,0,0)' }], { duration: 900 });
+    }
+  }
+
+  // Hook native console methods to also write to our console
+  (function hookConsole() {
+    const rawLog = console.log.bind(console);
+    const rawWarn = console.warn.bind(console);
+    const rawError = console.error.bind(console);
+    console.log = (...args) => { rawLog(...args); appendConsole(args.map(safeStringify).join(' '), 'info'); };
+    console.warn = (...args) => { rawWarn(...args); appendConsole(args.map(safeStringify).join(' '), 'warn'); };
+    console.error = (...args) => { rawError(...args); appendConsole(args.map(safeStringify).join(' '), 'error'); };
+    // window errors
+    window.addEventListener('error', (e) => {
+      appendConsole(`${e.message} (${e.filename}:${e.lineno}:${e.colno})`, 'error');
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      appendConsole(`UnhandledRejection: ${safeStringify(ev.reason)}`, 'error');
+    });
+    function safeStringify(v) {
+      try {
+        if (typeof v === 'object') return JSON.stringify(v);
+        return String(v);
+      } catch (e) {
+        return String(v);
+      }
+    }
+  })();
+
+  // Console controls
+  btnClear.addEventListener('click', () => { consoleBody.innerHTML = ''; });
+  btnCollapse.addEventListener('click', () => {
+    const dock = document.getElementById('consoleDock');
+    if (dock.style.height === '' || dock.style.height !== '32px') {
+      dock.style.height = '32px'; btnCollapse.textContent = 'Expand';
+    } else {
+      dock.style.height = '220px'; btnCollapse.textContent = 'Collapse';
+    }
+  });
+  btnDownload.addEventListener('click', () => {
+    const text = Array.from(consoleBody.children).map(n => n.textContent).join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `console-${Date.now()}.txt`; a.click(); URL.revokeObjectURL(url);
+  });
+
+  appendConsole('Console initialized.', 'info');
+
+  // ---------- Renderer / Scene / Camera ----------
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.physicallyCorrectLights = false;
 
   const scene = new THREE.Scene();
-  scene.background = null;
+  scene.background = null; // allow CSS background to show
 
   const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
 
@@ -204,6 +257,7 @@
   }
   setCameraForViewport();
 
+  // Controls
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enablePan = false;
   controls.enableDamping = true;
@@ -213,199 +267,203 @@
   controls.minDistance = 1.2;
   controls.maxDistance = 12;
 
-  // Lights
-  const ambient = new THREE.AmbientLight(0xffffff, 0.55); scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.95); dirLight.position.set(5, 3, 5); scene.add(dirLight);
+  // ---------- Lights ----------
+  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(5, 3, 5);
+  scene.add(dirLight);
 
-  // ---------------------------
-  // LoadingManager + TextureLoader (single declaration)
-  // ---------------------------
-  const loadingManager = new THREE.LoadingManager();
-  loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
-    const pct = Math.round((itemsLoaded / itemsTotal) * 100);
+  // ---------- Robust texture loading (manual counting) ----------
+  // Problem previously: loadingManager.onProgress may not reliably fire for all resources,
+  // so we manually track asset URLs and update progress when each load completes or errors.
+
+  // texture list: base (simple material uses no external map), optional detail texture for satellite
+  const ASSETS = {
+    // These are hosted images with permissive CORS (threejs.org / GitHub raw). If any fail, we still count them.
+    satelliteMap: 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
+    bumpMap: 'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
+    specMap: 'https://threejs.org/examples/textures/planets/earthspec1k.jpg',
+    cloudsMap: 'https://threejs.org/examples/textures/planets/earth_clouds_1024.png'
+  };
+
+  // Manual tracker
+  const assetUrls = Object.values(ASSETS);
+  let totalAssets = assetUrls.length;
+  let loadedAssets = 0;
+  let failedAssets = 0;
+
+  // Update progress bar (ensures it moves even if some onProgress events missing)
+  function updateProgressUI() {
+    const pct = Math.round(((loadedAssets + failedAssets) / totalAssets) * 100);
     loaderInner.style.width = pct + '%';
     loaderInner.setAttribute('aria-valuenow', pct.toString());
-    loaderInner.title = pct + '%';
-  };
-  loadingManager.onLoad = () => {
-    setTimeout(() => { loaderWrap.style.display = 'none'; }, 300);
-    appendConsole('All resources loaded.', 'log-info');
-  };
-  loadingManager.onError = (url) => {
-    topInfo.textContent = '텍스처 불러오기 실패 — 네트워크 확인';
-    appendConsole('Loading error: ' + url, 'log-error');
-  };
-
-  const texLoader = new THREE.TextureLoader(loadingManager); // <<-- only declared once
-
-  // ---------------------------
-  // Textures & detail levels
-  // ---------------------------
-  const TEXTURES = {
-    base: {
-      map: 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
-      bump: 'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-      spec: 'https://threejs.org/examples/textures/planets/earthspec1k.jpg',
-      clouds: 'https://threejs.org/examples/textures/planets/earth_clouds_1024.png'
-    },
-    detail2: {
-      map: 'https://raw.githubusercontent.com/planetarymaps/planetary-maps/main/earth/earthmap4k.jpg',
-      bump: 'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-      spec: 'https://threejs.org/examples/textures/planets/earthspec1k.jpg'
-    },
-    detail3: {
-      map: 'https://raw.githubusercontent.com/jeromeetienne/threex.planets/master/images/earthmap1k.jpg',
-      bump: 'https://threejs.org/examples/textures/planets/earthbump1k.jpg',
-      spec: 'https://threejs.org/examples/textures/planets/earthspec1k.jpg'
+    if (pct >= 100) {
+      // keep 100% visible briefly then hide wrapper
+      setTimeout(() => { loaderWrap.style.display = 'none'; }, 350);
     }
+  }
+
+  // Use a single TextureLoader; add crossOrigin for GitHub/threejs
+  const texLoader = new THREE.TextureLoader();
+  texLoader.crossOrigin = 'anonymous';
+
+  // loaded textures store
+  const TEXTURE_STORE = { sat: null, bump: null, spec: null, clouds: null };
+
+  // helper to load a single texture and update counts
+  function loadTextureKey(url, key) {
+    return new Promise((resolve) => {
+      texLoader.load(url, (tx) => {
+        loadedAssets++;
+        TEXTURE_STORE[key] = tx;
+        appendConsole(`Asset loaded: ${url}`, 'info');
+        updateProgressUI();
+        resolve({ success: true, key, url, texture: tx });
+      }, undefined, (err) => {
+        failedAssets++;
+        appendConsole(`Asset failed: ${url} — ${err}`, 'warn');
+        updateProgressUI();
+        resolve({ success: false, key, url, error: err });
+      });
+    });
+  }
+
+  // Kick off all loads
+  const loadAllAssets = async () => {
+    // show loader
+    loaderWrap.style.display = 'block';
+    updateProgressUI(); // show initial 0%
+    const promises = [
+      loadTextureKey(ASSETS.satelliteMap, 'sat'),
+      loadTextureKey(ASSETS.bumpMap, 'bump'),
+      loadTextureKey(ASSETS.specMap, 'spec'),
+      loadTextureKey(ASSETS.cloudsMap, 'clouds')
+    ];
+    const results = await Promise.all(promises);
+    appendConsole('All asset load attempts finished.', 'info');
+    // ensure progress is 100 if all accounted
+    updateProgressUI();
+    return results;
   };
 
-  // preload base textures (these will be tracked by loadingManager)
-  const baseMap = texLoader.load(TEXTURES.base.map);
-  const baseBump = texLoader.load(TEXTURES.base.bump);
-  const baseSpec = texLoader.load(TEXTURES.base.spec);
-  const baseCloud = texLoader.load(TEXTURES.base.clouds);
-
-  // ---------------------------
-  // Earth object + clouds
-  // ---------------------------
-  const earthGroup = new THREE.Group(); scene.add(earthGroup);
+  // ---------- Earth basic geometry & materials ----------
+  // We'll create a simple Phong material (no texture) as default, then allow swapping to the satellite texture.
   const RADIUS = 1.0;
   const SEG = 64;
   const earthGeo = new THREE.SphereGeometry(RADIUS, SEG, SEG);
-  const earthMat = new THREE.MeshPhongMaterial({
-    map: baseMap,
-    bumpMap: baseBump,
-    bumpScale: 0.045,
-    specularMap: baseSpec,
-    specular: new THREE.Color(0x444444),
-    shininess: 6
+
+  // default simple material: color + subtle specular (fast)
+  const simpleMat = new THREE.MeshPhongMaterial({
+    color: 0x0f6ec0,        // nice bluish color
+    shininess: 18,
+    specular: new THREE.Color(0x222222),
+    flatShading: false
   });
-  const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+
+  // placeholder material for satellite (will be set after textures load)
+  const satelliteMat = new THREE.MeshPhongMaterial({});
+
+  // Earth mesh (start with simpleMat)
+  const earthMesh = new THREE.Mesh(earthGeo, simpleMat);
   earthMesh.name = 'earth';
-  earthGroup.add(earthMesh);
+  earthMesh.rotation.y = 0.3; // minor initial rotation for visual
+  scene.add(earthMesh);
 
-  const cloudsGeo = new THREE.SphereGeometry(RADIUS * 1.008, SEG, SEG);
-  const cloudsMat = new THREE.MeshLambertMaterial({
-    map: baseCloud,
-    transparent: true,
-    opacity: 0.9,
-    depthWrite: false
-  });
-  const cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat);
-  cloudsMesh.name = 'clouds';
-  earthGroup.add(cloudsMesh);
+  // clouds (added only if cloud texture loaded)
+  let cloudsMesh = null;
 
-  // optional night lights overlay
-  const lightsMat = new THREE.MeshBasicMaterial({
-    map: baseSpec,
-    blending: THREE.AdditiveBlending,
-    transparent: true,
-    opacity: 0.22
-  });
-  const lightsMesh = new THREE.Mesh(earthGeo.clone(), lightsMat);
-  lightsMesh.visible = false;
-  earthGroup.add(lightsMesh);
+  // optional night lights overlay (not required, keep simple)
+  let lightsMesh = null;
 
-  // ---------------------------
-  // GeoJSON borders
-  // ---------------------------
-  let bordersGroup = null;
+  // ---------- GeoJSON borders (lines) - load in background ----------
+  let bordersGroup = new THREE.Group();
+  bordersGroup.name = 'borders';
+  bordersGroup.visible = false;
+  earthMesh.add(bordersGroup); // attach to earth for rotation sync
+  // We'll fetch a moderately sized GeoJSON; failure is tolerated
   async function loadBorders(url = 'https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson') {
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const geo = await res.json();
-      const group = new THREE.Group();
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x8ee6ff, linewidth: 1, transparent: true, opacity: 0.9 });
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x9fe9ff, linewidth: 1, transparent: true, opacity: 0.9 });
       for (const f of geo.features) {
-        const geom = f.geometry;
-        if (!geom) continue;
-        if (geom.type === 'Polygon') buildLinesFromPolygon(geom.coordinates, group, lineMat);
-        else if (geom.type === 'MultiPolygon') for (const poly of geom.coordinates) buildLinesFromPolygon(poly, group, lineMat);
+        const g = f.geometry;
+        if (!g) continue;
+        if (g.type === 'Polygon') buildLinesFromPolygon(g.coordinates, bordersGroup, lineMat);
+        else if (g.type === 'MultiPolygon') for (const poly of g.coordinates) buildLinesFromPolygon(poly, bordersGroup, lineMat);
       }
-      group.name = 'borders';
-      group.scale.set(1.002, 1.002, 1.002);
-      group.visible = false;
-      bordersGroup = group;
-      earthGroup.add(bordersGroup);
-      appendConsole('Borders loaded and added to scene.', 'log-info');
+      appendConsole('Borders loaded', 'info');
     } catch (err) {
-      console.warn('Failed to load borders:', err);
-      appendConsole('Failed to load borders: ' + err, 'log-warn');
-      topInfo.textContent = '국경선 데이터 불러오기 실패 — 네트워크를 확인하세요.';
+      appendConsole('Border load failed: ' + err, 'warn');
     }
   }
   function buildLinesFromPolygon(polygonCoords, group, material) {
     for (const ring of polygonCoords) {
-      const points = [];
+      const pts = [];
       for (const coord of ring) {
         const lon = coord[0] * Math.PI / 180;
         const lat = coord[1] * Math.PI / 180;
         const x = Math.cos(lat) * Math.cos(lon);
         const y = Math.sin(lat);
         const z = Math.cos(lat) * Math.sin(lon);
-        points.push(new THREE.Vector3(x, y, z));
+        pts.push(new THREE.Vector3(x, y, z));
       }
-      if (points.length > 1) {
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const line = new THREE.Line(geometry, material);
+      if (pts.length > 1) {
+        const geom = new THREE.BufferGeometry().setFromPoints(pts);
+        const line = new THREE.Line(geom, material);
         group.add(line);
       }
     }
   }
-  loadBorders();
+  // kick off
+  loadBorders().catch(e => appendConsole('Borders fetch exception: ' + e, 'warn'));
 
-  // ---------------------------
-  // State & detail / zoom
-  // ---------------------------
+  // ---------- Interaction state ----------
   let autoRotate = true;
-  let bordersVisible = false;
-  let lightsVisible = false;
-  const DETAIL_LEVELS = [
-    { name: 'Base', map: TEXTURES.base.map, bump: TEXTURES.base.bump, spec: TEXTURES.base.spec },
-    { name: 'Detail-2', map: TEXTURES.detail2.map, bump: TEXTURES.detail2.bump, spec: TEXTURES.detail2.spec },
-    { name: 'Detail-3', map: TEXTURES.detail3.map, bump: TEXTURES.detail3.bump, spec: TEXTURES.detail3.spec }
-  ];
-  let currentDetail = 0;
-  const ZOOM_STEPS = [3.2, 2.0, 1.3];
+  let bordersVisibleState = false;
+  let usingSatellite = false; // whether satellite texture is applied
   let currentZoomStep = 0;
+  const ZOOM_STEPS = [3.2, 2.3, 1.4]; // camera z distances for steps
 
-  // pinch/tap
+  function setCameraForViewportAndZoom() {
+    const w = window.innerWidth;
+    if (w <= 420) camera.position.set(0, 0, ZOOM_STEPS[0]);
+    else if (w <= 768) camera.position.set(0, 0, ZOOM_STEPS[0]);
+    else if (w <= 1024) camera.position.set(0, 0, ZOOM_STEPS[0]);
+    else camera.position.set(0, 0, ZOOM_STEPS[0]);
+  }
+  setCameraForViewportAndZoom();
+
+  // ---------- Gesture handling: pinch, tap, wheel ----------
   let pinchStartDistance = null;
   let lastTap = 0;
-
-  function getDistanceFromTouches(t1, t2) {
+  function getDistance(t1, t2) {
     const dx = t1.clientX - t2.clientX;
     const dy = t1.clientY - t2.clientY;
     return Math.sqrt(dx * dx + dy * dy);
   }
-
   canvas.addEventListener('touchstart', (evt) => {
-    if (evt.touches.length === 2) {
-      pinchStartDistance = getDistanceFromTouches(evt.touches[0], evt.touches[1]);
-    }
+    if (evt.touches.length === 2) pinchStartDistance = getDistance(evt.touches[0], evt.touches[1]);
   }, { passive: true });
-
   canvas.addEventListener('touchmove', (evt) => {
     if (evt.touches.length === 2 && pinchStartDistance != null) {
-      const newDist = getDistanceFromTouches(evt.touches[0], evt.touches[1]);
+      const newDist = getDistance(evt.touches[0], evt.touches[1]);
       const delta = (pinchStartDistance - newDist) * 0.01;
       camera.position.z = THREE.MathUtils.clamp(camera.position.z + delta, 1.0, 12);
       pinchStartDistance = newDist;
     }
   }, { passive: true });
-
   canvas.addEventListener('touchend', (evt) => {
     if (evt.touches.length < 2) pinchStartDistance = null;
     if (evt.changedTouches && evt.changedTouches.length === 1) {
       const now = Date.now();
       if (now - lastTap < 350) {
-        // double-tap: reset zoom
+        // double tap -> reset
         resetZoom();
         lastTap = 0;
       } else {
-        // single tap candidate
         setTimeout(() => {
           if (Date.now() - lastTap >= 350) toggleZoomStep();
         }, 360);
@@ -413,16 +471,13 @@
       }
     }
   }, { passive: true });
-
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     camera.position.z = THREE.MathUtils.clamp(camera.position.z + e.deltaY * 0.002, 1.0, 12);
   }, { passive: false });
 
-  // ---------------------------
-  // Helpers: zoom transitions & texture loader promise
-  // ---------------------------
-  function smoothCameraTo(targetZ, duration = 400) {
+  // ---------- Helpers: zoom transitions ----------
+  function smoothCameraTo(targetZ, duration = 360) {
     const startZ = camera.position.z;
     const start = performance.now();
     return new Promise((resolve) => {
@@ -439,123 +494,177 @@
 
   function toggleZoomStep() {
     currentZoomStep = (currentZoomStep + 1) % ZOOM_STEPS.length;
-    const baseZ = (window.innerWidth <= 768) ? 3.2 : 4.6;
-    const target = ZOOM_STEPS[currentZoomStep];
-    smoothCameraTo(target, 300);
-    earthMat.bumpScale = 0.04 + 0.02 * currentZoomStep;
+    smoothCameraTo(ZOOM_STEPS[currentZoomStep], 300);
+    appendConsole('Zoom step -> ' + currentZoomStep, 'debug');
   }
 
   function resetZoom() {
     currentZoomStep = 0;
-    setCameraForViewport();
-    earthMat.bumpScale = 0.045;
+    smoothCameraTo(ZOOM_STEPS[0], 300);
   }
 
-  function texLoaderPromise(url) {
-    return new Promise((resolve, reject) => {
-      texLoader.load(url, (tx) => resolve(tx), undefined, (err) => reject(err));
-    });
-  }
-
-  // ---------------------------
-  // UI button handlers
-  // ---------------------------
+  // ---------- UI button handlers ----------
   btnRotate.addEventListener('click', () => {
     autoRotate = !autoRotate;
-    btnRotate.textContent = autoRotate ? '자동 회전 On' : '자동 회전 Off';
     btnRotate.setAttribute('aria-pressed', String(autoRotate));
-    appendConsole(`Auto-rotate: ${autoRotate}`, 'log-info');
+    btnRotate.textContent = autoRotate ? 'Auto Rotate' : 'Auto Rotate (Off)';
+    appendConsole('AutoRotate: ' + autoRotate, 'info');
   });
 
   btnBorders.addEventListener('click', () => {
-    bordersVisible = !bordersVisible;
-    if (bordersGroup) bordersGroup.visible = bordersVisible;
-    btnBorders.setAttribute('aria-pressed', String(bordersVisible));
-    appendConsole(`Borders visible: ${bordersVisible}`, 'log-info');
+    bordersVisibleState = !bordersVisibleState;
+    bordersGroup.visible = bordersVisibleState;
+    btnBorders.setAttribute('aria-pressed', String(bordersVisibleState));
+    appendConsole('Borders visible: ' + bordersVisibleState, 'info');
   });
 
-  btnZoom.addEventListener('click', () => { toggleZoomStep(); appendConsole(`Zoom step: ${currentZoomStep}`, 'log-info'); });
+  btnZoom.addEventListener('click', () => {
+    toggleZoomStep();
+  });
 
+  // Detail: toggle simple <-> satellite texture
   btnDetail.addEventListener('click', async () => {
-    currentDetail = (currentDetail + 1) % DETAIL_LEVELS.length;
-    btnDetail.setAttribute('aria-pressed', String(true));
-    btnDetail.textContent = `디테일: ${DETAIL_LEVELS[currentDetail].name}`;
-    appendConsole(`Swapping to detail: ${DETAIL_LEVELS[currentDetail].name}`, 'log-info');
-    try {
-      loaderWrap.style.display = 'block';
-      loaderInner.style.width = '0%';
-      const [m1, b1, s1] = await Promise.all([
-        texLoaderPromise(DETAIL_LEVELS[currentDetail].map),
-        texLoaderPromise(DETAIL_LEVELS[currentDetail].bump),
-        texLoaderPromise(DETAIL_LEVELS[currentDetail].spec)
-      ]);
-      earthMat.map = m1;
-      earthMat.bumpMap = b1;
-      earthMat.specularMap = s1;
-      earthMat.needsUpdate = true;
-      appendConsole('Detail swap complete.', 'log-info');
-      setTimeout(() => { loaderWrap.style.display = 'none'; }, 300);
-    } catch (err) {
-      appendConsole('Detail swap failed: ' + err, 'log-error');
-      topInfo.textContent = '고해상도 텍스처 불러오기 실패';
+    // If we already loaded textures, swap immediately; otherwise attempt to load
+    if (!usingSatellite) {
+      appendConsole('Switching to satellite detail (attempting to use loaded textures)...', 'info');
+      // If textures loaded, apply; otherwise ensure loadAllAssets first
+      if (loadedAssets + failedAssets < totalAssets) {
+        appendConsole('Detail assets not fully loaded — waiting for asset loads...', 'debug');
+        await loadAllAssets();
+      }
+      applySatelliteMaterialIfAvailable();
+    } else {
+      // switch back to simple
+      earthMesh.material = simpleMat;
+      usingSatellite = false;
+      btnDetail.textContent = 'Detail';
+      appendConsole('Switched to simple material.', 'info');
     }
   });
 
-  // ---------------------------
-  // Animation loop
-  // ---------------------------
+  // Apply satellite textures if available
+  function applySatelliteMaterialIfAvailable() {
+    if (TEXTURE_STORE.sat) {
+      satelliteMat.map = TEXTURE_STORE.sat;
+      satelliteMat.bumpMap = TEXTURE_STORE.bump;
+      satelliteMat.bumpScale = 0.03;
+      satelliteMat.specularMap = TEXTURE_STORE.spec;
+      satelliteMat.shininess = 8;
+      satelliteMat.needsUpdate = true;
+      earthMesh.material = satelliteMat;
+      usingSatellite = true;
+      btnDetail.textContent = 'Simple';
+      appendConsole('Satellite detail applied.', 'info');
+
+      // clouds
+      if (TEXTURE_STORE.clouds) {
+        if (cloudsMesh) {
+          cloudsMesh.material.map = TEXTURE_STORE.clouds;
+          cloudsMesh.material.needsUpdate = true;
+        } else {
+          const cloudsGeo = new THREE.SphereGeometry(RADIUS * 1.008, SEG, SEG);
+          const cloudsMat = new THREE.MeshLambertMaterial({
+            map: TEXTURE_STORE.clouds,
+            transparent: true,
+            opacity: 0.9,
+            depthWrite: false
+          });
+          cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat);
+          earthMesh.add(cloudsMesh);
+        }
+      }
+    } else {
+      appendConsole('Satellite texture not available (load failed?).', 'warn');
+    }
+  }
+
+  // ---------- Animation loop ----------
   let last = performance.now();
-  function render(now) {
+  function animate(now) {
+    requestAnimationFrame(animate);
     const dt = (now - last) / 1000 || 0;
     last = now;
+
+    // auto rotate the earth group
     if (autoRotate) {
       const rotSpeed = 0.2 / (0.8 + (currentZoomStep + 1) * 0.6);
       earthMesh.rotation.y += rotSpeed * dt;
-      cloudsMesh.rotation.y += rotSpeed * dt * 1.2;
+      if (cloudsMesh) cloudsMesh.rotation.y += rotSpeed * dt * 1.15;
     }
+
     controls.update();
     renderer.render(scene, camera);
-    requestAnimationFrame(render);
   }
-  requestAnimationFrame(render);
+  requestAnimationFrame(animate);
 
-  // ---------------------------
-  // Preload other textures (non-blocking)
-  // ---------------------------
-  function preloadTexturesForDetailLevels() {
-    const allUrls = new Set();
-    for (const k in TEXTURES) {
-      const t = TEXTURES[k];
-      if (t.map) allUrls.add(t.map);
-      if (t.bump) allUrls.add(t.bump);
-      if (t.spec) allUrls.add(t.spec);
+  // ---------- Asset loading invocation (start immediately) ----------
+  // We call loadAllAssets() but don't block the app; UI will update when done.
+  loadAllAssets().then((res) => {
+    appendConsole('Initial assets load complete. ' + loadedAssets + ' loaded, ' + failedAssets + ' failed.', 'info');
+    // after loading attempt, if any assets loaded, prepare satellite material
+    if (loadedAssets > 0) {
+      applySatelliteMaterialIfAvailable();
     }
-    for (const u of allUrls) {
-      texLoader.load(u, () => { /* intentionally empty */ }, undefined, () => { appendConsole('Preload fail: ' + u, 'log-warn'); });
-    }
-  }
-  preloadTexturesForDetailLevels();
-
-  // ---------------------------
-  // Responsive resize
-  // ---------------------------
-  window.addEventListener('resize', () => {
-    const w = window.innerWidth, h = window.innerHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-    setCameraForViewport();
+  }).catch((e) => {
+    appendConsole('Error during initial asset loads: ' + e, 'error');
   });
 
-  // expose some debug objects
-  window._three = { renderer, scene, camera, earthMesh, cloudsMesh, controls };
+  // ---------- Responsive behavior ----------
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    setCameraForViewportAndZoom();
+  });
 
-  appendConsole('Three scene initialized. Camera position: ' + camera.position.z, 'log-info');
+  // ---------- Debug: expose few handles in window for dev debugging ----------
+  window._three = { renderer, scene, camera, earthMesh, controls, TEXTURE_STORE };
 
-  // ---------------------------
-  // Safety / sanity logs
-  // ---------------------------
-  // If any resource fails in manager, loadingManager.onError will log it.
+  // ---------- Sanity checks & startup logs ----------
+  appendConsole('Scene initialized. Camera z: ' + camera.position.z, 'debug');
+
+  // If loader appears not to move for some reason, start a watchdog to nudge progress:
+  (function loaderWatchdog() {
+    let lastPct = 0;
+    const id = setInterval(() => {
+      const pctText = loaderInner.style.width.replace('%', '') || '0';
+      const pct = parseInt(pctText, 10) || 0;
+      if (pct > lastPct) {
+        lastPct = pct;
+      } else {
+        // If no progress for 3s and not finished, try to re-check asset URLs by reissuing HEAD fetches
+        if (pct < 100) {
+          appendConsole('Loader stalled? Re-checking resources...', 'warn');
+          // Try silent HEAD fetch to see which URLs respond — does not alter counts, but logs
+          assetUrls.forEach(async (u) => {
+            try {
+              const r = await fetch(u, { method: 'HEAD' });
+              appendConsole(`HEAD ${u} => ${r.status}`, r.ok ? 'debug' : 'warn');
+            } catch (err) {
+              appendConsole(`HEAD failed for ${u}: ${err}`, 'warn');
+            }
+          });
+        } else {
+          clearInterval(id);
+        }
+      }
+      if (pct >= 100) clearInterval(id);
+    }, 3000);
+  })();
+
+  // ---------- Set example "logged-in" user info (placeholder) ----------
+  (function setExampleUser() {
+    // Replace with real auth integration later if needed
+    const isLogged = false;
+    if (isLogged) {
+      userNameEl.textContent = 'LegendMiner';
+      userStatusEl.textContent = 'Online';
+    } else {
+      userNameEl.textContent = 'Guest';
+      userStatusEl.textContent = 'Not signed in';
+    }
+  })();
+
   </script>
 </body>
 </html>
